@@ -1522,12 +1522,14 @@ function parseMaddenPlayersFromText(text) {
     if (cells.length < 3) continue;
     const header = cells.map((cell) => cell.toLowerCase());
     if (header.includes("player") || header.includes("name")) continue;
-    const [name, team, position, ovr, spd, str, agi, awr] = cells;
+    const [name, team, position, ovr, spd, str, agi, awr, jerseyNumber] = cells;
+    const parsedJerseyNumber = String(jerseyNumber || "").trim() === "" ? null : Number(jerseyNumber);
     if (!name || !team) continue;
     rows.push({
       name,
       team,
       position: position || "",
+      jerseyNumber: Number.isInteger(parsedJerseyNumber) ? parsedJerseyNumber : null,
       ovr: Number(ovr) || 0,
       spd: Number(spd) || 0,
       str: Number(str) || 0,
@@ -1582,10 +1584,12 @@ function parseFallbackMaddenCsv(text) {
       agi: Number(row.agi) || 0,
       awr: Number(row.awr) || 0,
     };
+    const jerseyNumber = String(row.jerseynumber || "").trim() === "" ? null : Number(row.jerseynumber);
     return {
       name: `${row.firstname || ""} ${row.lastname || ""}`.trim(),
       team: row.team || "",
       position: row.position || "",
+      jerseyNumber: Number.isInteger(jerseyNumber) ? jerseyNumber : null,
       ratings,
       ovr: ratings.ovr,
       spd: ratings.spd,
@@ -1699,12 +1703,13 @@ function renderMaddenPreview() {
   els.maddenPreview.innerHTML = players.map((player) => `
     <tr>
       <td title="${escapeHtml(player.name)}">${escapeHtml(player.tsbName || formatTsbDisplayName(player.name))}</td>
+      <td>${Number.isInteger(player.jerseyNumber) ? player.jerseyNumber : ""}</td>
       <td>${escapeHtml(player.position)}</td>
       <td>${escapeHtml(player.team)}</td>
       <td>${player.ovr || ""}</td>
       <td>${player.spd || ""}</td>
     </tr>
-  `).join("") || "<tr><td colspan=\"5\">No Madden players available for this team yet.</td></tr>";
+  `).join("") || "<tr><td colspan=\"6\">No Madden players available for this team yet.</td></tr>";
 }
 
 async function importMaddenRatings() {
@@ -1803,9 +1808,17 @@ async function enrichAssignments(assignments, progress) {
 function applyMaddenAssignments(assignments) {
   assignments.forEach(({ teamSlot, slotIndex, player }) => {
     pendingNameEdits.set(slotIndex, player.tsbName || formatTsbDisplayName(player.name));
+    const numberByte = maddenJerseyNumberToTsbByte(player.jerseyNumber);
+    if (numberByte !== null && playerTable?.format === "tsb-pointer") pendingNumberEdits.set(slotIndex, numberByte);
     const attributes = maddenToTecmoAttributes(player, slotRoleForTeamSlot(teamSlot).label);
     writePlayerAttributeValues(slotIndex, attributes);
   });
+}
+
+function maddenJerseyNumberToTsbByte(number) {
+  const value = Number(number);
+  if (!Number.isInteger(value) || value < 0 || value > 99) return null;
+  return (Math.floor(value / 10) << 4) | (value % 10);
 }
 
 async function applyMaddenNamesToCurrentTeam() {
