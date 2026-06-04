@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tecmo ROM Workshop</title>
+  <meta name="description" content="Edit Tecmo Super Bowl NES rosters, teams, ratings, graphics, and gameplay patches in your browser.">
+  <link rel="stylesheet" href="assets/css/tecmo-editor.css">
+</head>
+<body>
+  <header class="app-header">
+    <div>
+      <h1>Tecmo ROM Workshop</h1>
+      <p id="rom-subtitle">Load a NES ROM to inspect and edit raw CHR graphics.</p>
+    </div>
+    <div class="toolbar">
+      <button id="load-bundled" type="button" title="Load the bundled ROM" hidden>Load Bundled</button>
+      <label class="file-button" title="Open a NES ROM">
+        Open ROM
+        <input id="rom-file" type="file" accept=".nes,application/octet-stream">
+      </label>
+      <button id="export-rom" type="button" title="Download the edited ROM" disabled>Export ROM</button>
+      <button id="revert-rom" type="button" title="Restore the loaded ROM bytes" disabled>Revert</button>
+    </div>
+  </header>
+
+  <main class="workspace">
+    <aside class="sidebar">
+      <section class="panel">
+        <h2>Header</h2>
+        <dl id="summary" class="summary-grid">
+          <dt>Status</dt>
+          <dd>Waiting for ROM</dd>
+        </dl>
+      </section>
+
+      <section class="panel">
+        <h2>Vectors</h2>
+        <dl id="vectors" class="summary-grid compact">
+          <dt>NMI</dt>
+          <dd>-</dd>
+          <dt>Reset</dt>
+          <dd>-</dd>
+          <dt>IRQ</dt>
+          <dd>-</dd>
+        </dl>
+      </section>
+
+      <section class="panel">
+        <h2>Tile</h2>
+        <dl id="tile-info" class="summary-grid compact">
+          <dt>Bank</dt>
+          <dd>-</dd>
+          <dt>Tile</dt>
+          <dd>-</dd>
+          <dt>Offset</dt>
+          <dd>-</dd>
+        </dl>
+        <div class="palette-row" id="palette-row" aria-label="Pixel palette"></div>
+        <canvas id="tile-editor" width="256" height="256"></canvas>
+        <div class="tile-actions">
+          <button id="clear-tile" type="button" disabled>Clear</button>
+          <button id="copy-tile" type="button" disabled>Copy</button>
+          <button id="paste-tile" type="button" disabled>Paste</button>
+        </div>
+      </section>
+    </aside>
+
+    <section class="main-panel">
+      <nav class="tabs" aria-label="Editor views">
+        <button class="tab active" type="button" data-view="players">Players</button>
+        <button class="tab" type="button" data-view="teams">Teams</button>
+        <button class="tab" type="button" data-view="tsb">TSB Hacks</button>
+        <button class="tab" type="button" data-view="graphics">Graphics</button>
+        <button class="tab" type="button" data-view="map">ROM Map</button>
+        <button class="tab" type="button" data-view="prg">PRG Viewer</button>
+        <button class="tab" type="button" data-view="strings">ASCII</button>
+      </nav>
+
+      <section id="view-players" class="view active">
+        <div class="view-bar">
+          <div class="control-group">
+            <label for="team-select">Team</label>
+            <select id="team-select" disabled></select>
+          </div>
+          <div class="player-actions">
+            <button id="import-madden" type="button" disabled>Import From Madden</button>
+            <button id="apply-player-names" type="button" disabled>Apply All Changes</button>
+          </div>
+        </div>
+
+        <div class="human-grid">
+          <section class="human-section">
+            <h2 id="roster-heading">Roster Slots</h2>
+            <div id="player-status" class="muted">Load a ROM to detect editable player names.</div>
+            <div class="player-table-wrap">
+              <table class="player-table">
+                <thead>
+                  <tr><th>Role</th><th>#</th><th>Current</th><th>New Name</th></tr>
+                </thead>
+                <tbody id="player-table"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="human-section">
+            <h2>Player Attributes</h2>
+            <div id="attribute-status" class="muted">Select a roster slot to inspect editable attributes.</div>
+            <div id="attribute-editor" class="attribute-editor"></div>
+            <h2>Name Diff</h2>
+            <div id="player-diff" class="hack-detail">Edit a name to preview its bytes.</div>
+          </section>
+        </div>
+
+        <section class="human-section set-box">
+          <h2 id="madden-heading">Madden Import</h2>
+          <div class="view-bar">
+            <div class="control-group">
+              <label for="madden-team-select">Madden team</label>
+              <select id="madden-team-select" disabled></select>
+            </div>
+            <div class="player-actions">
+              <button id="apply-madden-team" type="button" disabled>Fill Selected Team Slots</button>
+              <button id="apply-madden-all" type="button" disabled>Fill All Teams</button>
+            </div>
+          </div>
+          <div id="madden-status" class="muted">Use Import From Madden to load current ratings, then choose a team.</div>
+          <textarea id="madden-paste" spellcheck="false" placeholder="Fallback: paste Madden rows as CSV with columns Name, Team, Position, OVR, SPD, STR, AGI, AWR"></textarea>
+          <div class="patch-actions">
+            <button id="parse-madden-paste" type="button">Parse Pasted Madden Data</button>
+          </div>
+          <table class="madden-preview">
+            <thead>
+              <tr><th>Player</th><th>Pos</th><th>Team</th><th>OVR</th><th>SPD</th></tr>
+            </thead>
+            <tbody id="madden-preview"></tbody>
+          </table>
+        </section>
+      </section>
+
+      <section id="view-teams" class="view">
+        <div class="view-bar">
+          <div class="control-group">
+            <label for="identity-team-select">Team</label>
+            <select id="identity-team-select" disabled></select>
+          </div>
+          <div class="player-actions">
+            <button id="update-team-names" type="button" disabled>Update Team Names</button>
+            <button id="apply-team-changes" type="button" disabled>Apply Team Changes</button>
+          </div>
+        </div>
+
+        <div class="human-grid team-editor-grid">
+          <section class="human-section">
+            <h2 id="team-identity-heading">Team Identity</h2>
+            <div id="team-identity-status" class="muted">Load a Tecmo Super Bowl ROM to edit team names.</div>
+            <div id="team-identity-editor" class="team-identity-editor"></div>
+          </section>
+
+          <section class="human-section">
+            <h2>Team Name Changes</h2>
+            <div id="team-name-diff" class="hack-detail">Edit a team or update all team names to preview changes.</div>
+          </section>
+        </div>
+      </section>
+
+      <section id="view-tsb" class="view">
+        <div class="view-bar">
+          <div class="control-group">
+            <label for="hack-filter">Category</label>
+            <select id="hack-filter"></select>
+          </div>
+          <span class="muted">TSBTool-style SET commands mapped into safer controls.</span>
+        </div>
+
+        <div class="human-grid">
+          <section class="human-section">
+            <h2>Human Controls</h2>
+            <div id="hack-controls" class="hack-controls"></div>
+          </section>
+
+          <section class="human-section">
+            <h2>Selected Patch</h2>
+            <div id="hack-detail" class="hack-detail">Choose a patch to inspect its offsets before applying.</div>
+            <div class="patch-actions">
+              <button id="apply-hack" type="button" disabled>Apply Patch</button>
+              <button id="copy-set" type="button" disabled>Copy SET</button>
+            </div>
+          </section>
+        </div>
+
+        <section class="human-section set-box">
+          <h2>Paste SET Commands</h2>
+          <textarea id="set-input" spellcheck="false" placeholder="SET(0x2BF04,0x00000000000000000000000000000000)"></textarea>
+          <div class="patch-actions">
+            <button id="preview-set" type="button" disabled>Preview</button>
+            <button id="apply-set" type="button" disabled>Apply Pasted SET</button>
+            <span id="set-status" class="muted"></span>
+          </div>
+        </section>
+      </section>
+
+      <section id="view-graphics" class="view">
+        <div class="view-bar">
+          <div class="control-group">
+            <label for="chr-bank">CHR bank</label>
+            <select id="chr-bank" disabled></select>
+          </div>
+          <div class="control-group">
+            <label for="zoom">Zoom</label>
+            <input id="zoom" type="range" min="1" max="4" value="2">
+          </div>
+          <span id="dirty-state" class="status-pill">Clean</span>
+        </div>
+        <div class="canvas-scroll">
+          <canvas id="chr-canvas" width="256" height="512"></canvas>
+        </div>
+      </section>
+
+      <section id="view-map" class="view">
+        <div class="map-grid">
+          <section>
+            <h2>PRG Banks</h2>
+            <table>
+              <thead>
+                <tr><th>Bank</th><th>File Range</th><th>CPU Window</th></tr>
+              </thead>
+              <tbody id="prg-map"></tbody>
+            </table>
+          </section>
+          <section>
+            <h2>CHR Banks</h2>
+            <table>
+              <thead>
+                <tr><th>Bank</th><th>File Range</th><th>Tiles</th></tr>
+              </thead>
+              <tbody id="chr-map"></tbody>
+            </table>
+          </section>
+        </div>
+      </section>
+
+      <section id="view-prg" class="view">
+        <div class="view-bar">
+          <div class="control-group">
+            <label for="prg-bank">PRG bank</label>
+            <select id="prg-bank" disabled></select>
+          </div>
+        </div>
+        <pre id="hex-view" class="hex-view">Load a ROM to inspect PRG bytes.</pre>
+      </section>
+
+      <section id="view-strings" class="view">
+        <div class="view-bar">
+          <button id="scan-strings" type="button" disabled>Scan PRG ASCII</button>
+          <span class="muted">Printable runs of 4+ bytes.</span>
+        </div>
+        <table>
+          <thead>
+            <tr><th>Offset</th><th>Bank</th><th>Text</th></tr>
+          </thead>
+          <tbody id="strings-table"></tbody>
+        </table>
+      </section>
+    </section>
+  </main>
+
+  <div id="work-overlay" class="work-overlay" hidden aria-live="polite" aria-busy="true">
+    <section class="work-dialog">
+      <h2 id="work-title">Working</h2>
+      <p id="work-detail">Preparing...</p>
+      <progress id="work-progress" max="100" value="0"></progress>
+      <div id="work-count" class="muted">0 / 0</div>
+    </section>
+  </div>
+
+  <script>
+    window.MADDEN_FALLBACK_URL = "assets/data/data.csv";
+  </script>
+  <script src="assets/js/tsb-hacks.js"></script>
+  <script src="assets/js/tecmo-editor.js"></script>
+</body>
+</html>
