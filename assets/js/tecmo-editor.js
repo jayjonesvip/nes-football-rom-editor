@@ -1077,6 +1077,19 @@ function readPlayerNumber(slotIndex) {
   return rom[playerSlotOffset(slotIndex)];
 }
 
+function readStoredPlayerNumber(slotIndex) {
+  if (playerTable?.format !== "tsb-pointer") return null;
+  return rom[playerSlotOffset(slotIndex)];
+}
+
+function tsbNumberByteToJersey(byte) {
+  if (!Number.isInteger(byte)) return "";
+  const tens = (byte >> 4) & 0x0F;
+  const ones = byte & 0x0F;
+  if (tens > 9 || ones > 9) return byteHex(byte);
+  return String(tens * 10 + ones);
+}
+
 function attributeOffsetForSlot(slotIndex) {
   if (!playerAttributeTable?.supported) return null;
   const teamIndex = Math.floor(slotIndex / playerAttributeTable.slotsPerTeam);
@@ -1268,7 +1281,9 @@ function renderPlayers() {
               ${TSB_SLOT_ROLES_30.map((optionRole, optionIndex) => `<option value="${optionIndex}"${optionIndex === i ? " selected" : ""}>${escapeHtml(optionRole.label)}</option>`).join("")}
             </select>`
           : `<span class="role-pill">${escapeHtml(role.label)}</span>`}</td>
-        <td>${readPlayerNumber(slotIndex) === null ? "" : byteHex(readPlayerNumber(slotIndex))}</td>
+        <td>${playerTable.format === "tsb-pointer"
+          ? `<input class="jersey-number-input" data-number-slot="${slotIndex}" type="number" min="0" max="99" value="${escapeHtml(tsbNumberByteToJersey(readPlayerNumber(slotIndex)))}" aria-label="Jersey number for ${escapeHtml(pending)}">`
+          : ""}</td>
         <td>${escapeHtml(current)}</td>
         <td><input class="player-name-input ${playerTable.format === "tsb-pointer" ? "tsb-name-input" : ""}" data-player-slot="${slotIndex}" maxlength="${playerTable.format === "tsb-pointer" ? 17 : 16}" value="${escapeHtml(pending)}"></td>
       </tr>
@@ -1283,7 +1298,9 @@ function renderPlayers() {
 function pendingNameSets() {
   if (!playerTable) return [];
   if (playerTable.format === "tsb-pointer") {
-    return Array.from(pendingNameEdits.entries()).map(([slotIndex, name]) => {
+    const changedSlots = new Set([...pendingNameEdits.keys(), ...pendingNumberEdits.keys()]);
+    return Array.from(changedSlots).sort((a, b) => a - b).map((slotIndex) => {
+      const name = pendingNameEdits.get(slotIndex) ?? readPlayerName(slotIndex);
       const encoded = displayToTsbName(name);
       const number = readPlayerNumber(slotIndex);
       return {
@@ -1306,10 +1323,10 @@ function renderPlayerDiff() {
     return;
   }
   const formatNote = playerTable.format === "tsb-pointer"
-    ? "TSB names are compact variable-length records. Applying changes rebuilds the name block and updates every player pointer while preserving jersey numbers."
+    ? "TSB names and jersey numbers are compact variable-length records. Applying changes rebuilds the roster block and updates every player pointer."
     : "Names are stored as fixed 16-byte uppercase slots. Periods are encoded as [ in this ROM.";
   els.playerDiff.innerHTML = `
-    <h3>${sets.length} pending name change${sets.length === 1 ? "" : "s"}</h3>
+    <h3>${sets.length} pending roster change${sets.length === 1 ? "" : "s"}</h3>
     <p>${formatNote}</p>
     ${renderSetDiff(sets)}
   `;
@@ -1327,9 +1344,9 @@ function applyPlayerNameEdits() {
     pendingNameEdits.clear();
     pendingNumberEdits.clear();
     renderPlayers();
-    els.maddenStatus.textContent = `Applied ${written} player-name byte(s).`;
+    els.maddenStatus.textContent = `Applied ${written} roster byte(s).`;
   } catch (error) {
-    els.maddenStatus.textContent = `Could not apply player names: ${error.message}`;
+    els.maddenStatus.textContent = `Could not apply roster changes: ${error.message}`;
   }
 }
 
@@ -2366,15 +2383,31 @@ els.playerTable.addEventListener("click", (event) => {
   }
 });
 els.playerTable.addEventListener("input", (event) => {
-  const input = event.target.closest("[data-player-slot]");
-  if (!input) return;
-  const slotIndex = Number(input.dataset.playerSlot);
-  selectedPlayerSlot = slotIndex;
-  const current = readPlayerName(slotIndex);
-  const next = playerTable.format === "tsb-pointer" ? input.value : input.value.toUpperCase();
-  if (playerTable.format !== "tsb-pointer") input.value = next;
-  if (next.trim() === current.trim()) pendingNameEdits.delete(slotIndex);
-  else pendingNameEdits.set(slotIndex, next);
+  const nameInput = event.target.closest("[data-player-slot]");
+  const numberInput = event.target.closest("[data-number-slot]");
+  if (!nameInput && !numberInput) return;
+
+  if (nameInput) {
+    const slotIndex = Number(nameInput.dataset.playerSlot);
+    selectedPlayerSlot = slotIndex;
+    const current = readPlayerName(slotIndex);
+    const next = playerTable.format === "tsb-pointer" ? nameInput.value : nameInput.value.toUpperCase();
+    if (playerTable.format !== "tsb-pointer") nameInput.value = next;
+    if (next.trim() === current.trim()) pendingNameEdits.delete(slotIndex);
+    else pendingNameEdits.set(slotIndex, next);
+  }
+
+  if (numberInput) {
+    const slotIndex = Number(numberInput.dataset.numberSlot);
+    selectedPlayerSlot = slotIndex;
+    const numeric = Math.max(0, Math.min(99, Number(numberInput.value || 0)));
+    const nextNumber = maddenJerseyNumberToTsbByte(Math.trunc(numeric));
+    if (nextNumber === null) return;
+    if (numberInput.value !== "" && Number(numberInput.value) !== numeric) numberInput.value = String(Math.trunc(numeric));
+    if (nextNumber === readStoredPlayerNumber(slotIndex)) pendingNumberEdits.delete(slotIndex);
+    else pendingNumberEdits.set(slotIndex, nextNumber);
+  }
+
   renderPlayerDiff();
   renderPlayerAttributes();
 });

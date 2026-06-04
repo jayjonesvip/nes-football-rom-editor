@@ -500,6 +500,18 @@ input[type="range"] {
   text-transform: none;
 }
 
+.jersey-number-input {
+  width: 56px;
+  min-height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0 6px;
+  font-family: Consolas, "Courier New", monospace;
+  text-align: center;
+  background: var(--dark);
+  color: var(--ink);
+}
+
 .selected-row td {
   background: #203b39;
 }
