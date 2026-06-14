@@ -47,6 +47,7 @@ const els = {
   startDraft: document.querySelector("#start-draft"),
   autoDraft: document.querySelector("#auto-draft"),
   draftForMe: document.querySelector("#draft-for-me"),
+  completeDraft: document.querySelector("#complete-draft"),
   applyDraft: document.querySelector("#apply-draft"),
   resetDraft: document.querySelector("#reset-draft"),
   draftSearch: document.querySelector("#draft-search"),
@@ -111,6 +112,7 @@ let pendingTeamEdits = new Map();
 let pendingColorEdits = new Map();
 let maddenPlayers = [];
 let draftState = null;
+let lastDraftSeed = null;
 
 const NES_COLORS = [
   "#626262", "#002A88", "#1412A7", "#3B00A4", "#5C007E", "#6E0040", "#6C0600", "#561D00",
@@ -461,6 +463,7 @@ function setLoadedRom(bytes, name) {
   pendingColorEdits = new Map();
   selectedPlayerSlot = 0;
   draftState = null;
+  lastDraftSeed = null;
 
   fillSelects();
   renderAll();
@@ -1433,10 +1436,13 @@ function startSmartDraft() {
   }
   const teamCount = playerTable.teams.length;
   const slotsPerTeam = playerTable.teams[0].slots;
-  const random = seededRandom(els.draftSeed.value || "1991");
+  const seed = String(els.draftSeed.value || "1234").trim() || "1234";
+  const random = seededRandom(seed);
+  lastDraftSeed = seed;
   draftState = {
     active: true,
     complete: false,
+    seed,
     userTeamIndex: Number(els.draftUserTeam.value || 0),
     random,
     order: shuffledIndexes(teamCount, random),
@@ -1504,6 +1510,14 @@ function autoDraftToUserPick() {
   renderDraft();
 }
 
+function completeDraft() {
+  if (!draftState) return;
+  while (!draftState.complete) {
+    autoDraftOnePick(currentDraftTeamIndex() === draftState.userTeamIndex);
+  }
+  renderDraft();
+}
+
 function applyDraftToRom() {
   if (!draftState?.complete) {
     els.draftStatus.textContent = "Finish the draft before applying it to the ROM.";
@@ -1546,12 +1560,15 @@ function renderDraftTeamSelect() {
 
 function renderDraft() {
   const supported = Boolean(playerTable?.format === "tsb-pointer" && playerAttributeTable?.supported);
-  els.startDraft.disabled = !supported;
+  const currentSeed = String(els.draftSeed.value || "1234").trim() || "1234";
+  const seedCanStartDraft = currentSeed !== lastDraftSeed;
+  els.startDraft.disabled = !supported || !seedCanStartDraft;
   els.draftUserTeam.disabled = !supported || Boolean(draftState?.active);
   els.draftSearch.disabled = !draftState;
   els.draftPositionFilter.disabled = !draftState;
   els.autoDraft.disabled = !draftState || draftState.complete || currentDraftTeamIndex() === draftState.userTeamIndex;
   els.draftForMe.disabled = !draftState || draftState.complete || currentDraftTeamIndex() !== draftState.userTeamIndex;
+  els.completeDraft.disabled = !draftState || draftState.complete;
   els.applyDraft.disabled = !draftState?.complete;
   els.resetDraft.disabled = !draftState;
 
@@ -1565,7 +1582,9 @@ function renderDraft() {
   }
 
   if (!draftState) {
-    els.draftStatus.textContent = "Smart Shuffle drafts from the loaded ROM's original player records. Names, jersey numbers, and attributes move together.";
+    els.draftStatus.textContent = seedCanStartDraft
+      ? "Smart Shuffle drafts from the loaded ROM's current player records. Names, jersey numbers, and attributes move together."
+      : "Change the random seed to start another draft from this ROM.";
     els.draftPickSummary.textContent = "No draft started.";
     els.draftNeeds.textContent = "Start a draft to see open slots.";
     els.draftBoard.innerHTML = "";
@@ -2802,6 +2821,7 @@ els.teamSelect.addEventListener("change", () => {
   renderMaddenPreview();
 });
 els.startDraft.addEventListener("click", startSmartDraft);
+els.draftSeed.addEventListener("input", renderDraft);
 els.autoDraft.addEventListener("click", () => withWork("Auto Drafting", "Running AI picks until your team is on the clock...", async () => {
   autoDraftToUserPick();
   updateWork("Auto draft stopped.", 1, 1);
@@ -2810,6 +2830,10 @@ els.draftForMe.addEventListener("click", () => {
   autoDraftOnePick(true);
   renderDraft();
 });
+els.completeDraft.addEventListener("click", () => withWork("Completing Draft", "Running AI picks for every remaining roster slot...", async () => {
+  completeDraft();
+  updateWork("Draft complete.", 1, 1);
+}, 1));
 els.applyDraft.addEventListener("click", () => withWork("Applying Draft", "Staging drafted rosters...", async () => {
   applyDraftToRom();
   updateWork("Draft staged.", 1, 1);
