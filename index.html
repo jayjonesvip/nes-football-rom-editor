@@ -147,11 +147,15 @@
             <select id="draft-user-team" disabled></select>
           </div>
           <div class="control-group">
-            <label for="draft-seed"><span aria-hidden="true">🌱</span> Random seed:</label>
-            <input id="draft-seed" class="seed-input" type="text" value="1234">
+            <label for="draft-mode">Workflow</label>
+            <select id="draft-mode" disabled>
+              <option value="manual" selected>Manual</option>
+              <option value="automatic">Automatic</option>
+            </select>
           </div>
           <div class="player-actions">
-            <button id="start-draft" type="button" disabled>Start New Draft</button>
+            <button id="randomize-draft" type="button" disabled>Randomize Draft Order</button>
+            <button id="start-draft" type="button" disabled>Start Draft</button>
             <button id="auto-draft" type="button" disabled>Auto Draft To My Pick</button>
             <button id="draft-for-me" type="button" disabled>Draft For Me</button>
             <button id="complete-draft" type="button" disabled>Complete Draft</button>
@@ -192,6 +196,8 @@
           <section class="human-section">
             <h2>Current Pick</h2>
             <div id="draft-pick-summary" class="draft-pick-summary">No draft started.</div>
+            <h2>Draft Order</h2>
+            <div id="draft-order" class="draft-order">Randomize the draft order to begin.</div>
             <h2>Roster Needs</h2>
             <div id="draft-needs" class="draft-needs">Start a draft to see open slots.</div>
             <h2>Draft Log</h2>
@@ -199,6 +205,18 @@
           </section>
         </div>
       </section>
+
+      <div id="draft-modal" class="work-overlay" hidden>
+        <div class="work-card draft-modal-card">
+          <h2>Automatic Draft</h2>
+          <p id="draft-modal-current">Preparing draft...</p>
+          <progress id="draft-modal-progress" value="0" max="840"></progress>
+          <div id="draft-modal-log" class="draft-log modal-log"></div>
+          <div class="patch-actions">
+            <button id="close-draft-modal" type="button" disabled>Close</button>
+          </div>
+        </div>
+      </div>
 
       <section id="view-teams" class="view">
         <div class="view-bar">

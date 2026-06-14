@@ -314,17 +314,6 @@ input[type="range"] {
   margin-top: 16px;
 }
 
-.seed-input {
-  width: 110px;
-  min-height: 36px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 0 8px;
-  background: var(--dark);
-  color: var(--ink);
-  font-family: Consolas, "Courier New", monospace;
-}
-
 .draft-grid {
   grid-template-columns: minmax(520px, 1.4fr) minmax(280px, .7fr);
 }
@@ -358,6 +347,31 @@ input[type="range"] {
   line-height: 1.45;
 }
 
+.draft-order {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.order-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0 9px;
+  background: var(--panel-raised);
+  font: 12px/1 Consolas, "Courier New", monospace;
+}
+
+.order-pill.user {
+  border-color: #4d7772;
+  background: #203b39;
+  color: #9de1d6;
+}
+
 .draft-needs {
   display: flex;
   gap: 6px;
@@ -389,6 +403,20 @@ input[type="range"] {
   gap: 6px;
   color: var(--muted);
   font: 12px/1.4 Consolas, "Courier New", monospace;
+}
+
+.draft-modal-card {
+  width: min(720px, calc(100vw - 32px));
+}
+
+.modal-log {
+  min-height: 220px;
+  max-height: 360px;
+  margin: 12px 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px;
+  background: var(--dark);
 }
 
 .hack-controls {

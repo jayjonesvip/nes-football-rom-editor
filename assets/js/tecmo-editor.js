@@ -43,7 +43,8 @@ const els = {
   setStatus: document.querySelector("#set-status"),
   teamSelect: document.querySelector("#team-select"),
   draftUserTeam: document.querySelector("#draft-user-team"),
-  draftSeed: document.querySelector("#draft-seed"),
+  draftMode: document.querySelector("#draft-mode"),
+  randomizeDraft: document.querySelector("#randomize-draft"),
   startDraft: document.querySelector("#start-draft"),
   autoDraft: document.querySelector("#auto-draft"),
   draftForMe: document.querySelector("#draft-for-me"),
@@ -55,8 +56,14 @@ const els = {
   draftStatus: document.querySelector("#draft-status"),
   draftBoard: document.querySelector("#draft-board"),
   draftPickSummary: document.querySelector("#draft-pick-summary"),
+  draftOrder: document.querySelector("#draft-order"),
   draftNeeds: document.querySelector("#draft-needs"),
   draftLog: document.querySelector("#draft-log"),
+  draftModal: document.querySelector("#draft-modal"),
+  draftModalCurrent: document.querySelector("#draft-modal-current"),
+  draftModalProgress: document.querySelector("#draft-modal-progress"),
+  draftModalLog: document.querySelector("#draft-modal-log"),
+  closeDraftModal: document.querySelector("#close-draft-modal"),
   identityTeamSelect: document.querySelector("#identity-team-select"),
   teamIdentityHeading: document.querySelector("#team-identity-heading"),
   teamIdentityStatus: document.querySelector("#team-identity-status"),
@@ -112,7 +119,7 @@ let pendingTeamEdits = new Map();
 let pendingColorEdits = new Map();
 let maddenPlayers = [];
 let draftState = null;
-let lastDraftSeed = null;
+let automaticDraftTimer = null;
 
 const NES_COLORS = [
   "#626262", "#002A88", "#1412A7", "#3B00A4", "#5C007E", "#6E0040", "#6C0600", "#561D00",
@@ -463,7 +470,7 @@ function setLoadedRom(bytes, name) {
   pendingColorEdits = new Map();
   selectedPlayerSlot = 0;
   draftState = null;
-  lastDraftSeed = null;
+  stopAutomaticDraft();
 
   fillSelects();
   renderAll();
@@ -1334,21 +1341,6 @@ function draftRatingFromAttributes(attrs) {
   return Math.round(ratings.reduce((sum, value) => sum + value, 0) / ratings.length);
 }
 
-function seededRandom(seedText) {
-  let seed = 2166136261;
-  String(seedText || "1991").split("").forEach((char) => {
-    seed ^= char.charCodeAt(0);
-    seed = Math.imul(seed, 16777619);
-  });
-  return () => {
-    seed += 0x6D2B79F5;
-    let value = seed;
-    value = Math.imul(value ^ (value >>> 15), value | 1);
-    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
-    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
 function shuffledIndexes(count, random) {
   const values = Array.from({ length: count }, (_, index) => index);
   for (let index = values.length - 1; index > 0; index -= 1) {
@@ -1429,23 +1421,25 @@ function buildDraftPool() {
   return players;
 }
 
-function startSmartDraft() {
+function supportedDraftLoaded() {
+  return Boolean(playerTable?.format === "tsb-pointer" && playerAttributeTable?.supported);
+}
+
+function createDraftState(mode = "manual") {
   if (!playerTable || playerTable.format !== "tsb-pointer" || !playerAttributeTable?.supported) {
     els.draftStatus.textContent = "Load the 28-team Tecmo Super Bowl ROM first. Smart Shuffle uses native TSB names, jerseys, and attributes.";
-    return;
+    return null;
   }
   const teamCount = playerTable.teams.length;
   const slotsPerTeam = playerTable.teams[0].slots;
-  const seed = String(els.draftSeed.value || "1234").trim() || "1234";
-  const random = seededRandom(seed);
-  lastDraftSeed = seed;
-  draftState = {
+  return {
     active: true,
+    started: false,
     complete: false,
-    seed,
+    mode,
     userTeamIndex: Number(els.draftUserTeam.value || 0),
-    random,
-    order: shuffledIndexes(teamCount, random),
+    random: Math.random,
+    order: shuffledIndexes(teamCount, Math.random),
     pickIndex: 0,
     teamCount,
     slotsPerTeam,
@@ -1454,7 +1448,17 @@ function startSmartDraft() {
     rosters: Array.from({ length: teamCount }, () => Array(slotsPerTeam).fill(null)),
     log: [],
   };
+}
+
+function randomizeDraftOrder() {
+  draftState = createDraftState("manual");
   renderDraft();
+}
+
+function startManualDraft() {
+  if (!draftState || draftState.mode !== "manual") return;
+  draftState.started = true;
+  autoDraftToUserPick();
 }
 
 function draftScorePlayer(teamIndex, player) {
@@ -1503,7 +1507,7 @@ function autoDraftOnePick(forUser = false) {
 }
 
 function autoDraftToUserPick() {
-  if (!draftState) return;
+  if (!draftState?.started) return;
   while (!draftState.complete && currentDraftTeamIndex() !== draftState.userTeamIndex) {
     autoDraftOnePick(false);
   }
@@ -1512,9 +1516,55 @@ function autoDraftToUserPick() {
 
 function completeDraft() {
   if (!draftState) return;
+  draftState.started = true;
   while (!draftState.complete) {
     autoDraftOnePick(currentDraftTeamIndex() === draftState.userTeamIndex);
   }
+  renderDraft();
+}
+
+function updateAutomaticDraftModal() {
+  if (!draftState) return;
+  const draftedCount = draftState.pool.filter((player) => player.drafted).length;
+  els.draftModalProgress.max = draftState.totalPicks;
+  els.draftModalProgress.value = draftedCount;
+  els.draftModalCurrent.textContent = draftState.complete
+    ? `Draft complete. ${draftedCount} players selected.`
+    : `${draftPickLabel()}: ${playerTable.teams[currentDraftTeamIndex()]?.name || "Team"} is on the clock.`;
+  els.draftModalLog.innerHTML = draftState.log.slice(0, 80).map((entry) => `<div>${escapeHtml(entry)}</div>`).join("");
+  els.closeDraftModal.disabled = !draftState.complete;
+}
+
+function stopAutomaticDraft() {
+  if (automaticDraftTimer) {
+    clearInterval(automaticDraftTimer);
+    automaticDraftTimer = null;
+  }
+}
+
+function runAutomaticDraftStep() {
+  if (!draftState || draftState.complete) {
+    stopAutomaticDraft();
+    updateAutomaticDraftModal();
+    renderDraft();
+    return;
+  }
+  autoDraftOnePick(currentDraftTeamIndex() === draftState.userTeamIndex);
+  updateAutomaticDraftModal();
+  renderDraft();
+  if (draftState.complete) stopAutomaticDraft();
+}
+
+function startAutomaticDraft() {
+  draftState = createDraftState("automatic");
+  if (!draftState) return;
+  draftState.started = true;
+  els.draftModal.hidden = false;
+  els.closeDraftModal.disabled = true;
+  updateAutomaticDraftModal();
+  stopAutomaticDraft();
+  automaticDraftTimer = setInterval(runAutomaticDraftStep, 1200);
+  runAutomaticDraftStep();
   renderDraft();
 }
 
@@ -1541,7 +1591,9 @@ function applyDraftToRom() {
 }
 
 function resetDraft() {
+  stopAutomaticDraft();
   draftState = null;
+  els.draftModal.hidden = true;
   renderDraft();
 }
 
@@ -1559,22 +1611,26 @@ function renderDraftTeamSelect() {
 }
 
 function renderDraft() {
-  const supported = Boolean(playerTable?.format === "tsb-pointer" && playerAttributeTable?.supported);
-  const currentSeed = String(els.draftSeed.value || "1234").trim() || "1234";
-  const seedCanStartDraft = currentSeed !== lastDraftSeed;
-  els.startDraft.disabled = !supported || !seedCanStartDraft;
+  const supported = supportedDraftLoaded();
+  const mode = els.draftMode.value || "manual";
+  const hasOrder = Boolean(draftState?.order?.length);
+  const started = Boolean(draftState?.started);
+  els.draftMode.disabled = !supported || Boolean(draftState);
+  els.randomizeDraft.disabled = !supported || mode !== "manual" || Boolean(draftState);
+  els.startDraft.disabled = !supported || (mode === "manual" ? (!hasOrder || started) : Boolean(draftState));
   els.draftUserTeam.disabled = !supported || Boolean(draftState?.active);
   els.draftSearch.disabled = !draftState;
   els.draftPositionFilter.disabled = !draftState;
-  els.autoDraft.disabled = !draftState || draftState.complete || currentDraftTeamIndex() === draftState.userTeamIndex;
-  els.draftForMe.disabled = !draftState || draftState.complete || currentDraftTeamIndex() !== draftState.userTeamIndex;
-  els.completeDraft.disabled = !draftState || draftState.complete;
+  els.autoDraft.disabled = !draftState?.started || draftState.complete || currentDraftTeamIndex() === draftState.userTeamIndex;
+  els.draftForMe.disabled = !draftState?.started || draftState.complete || currentDraftTeamIndex() !== draftState.userTeamIndex;
+  els.completeDraft.disabled = !draftState || draftState.complete || (mode === "manual" && !draftState.started);
   els.applyDraft.disabled = !draftState?.complete;
   els.resetDraft.disabled = !draftState;
 
   if (!supported) {
     els.draftStatus.textContent = "Load the 28-team Tecmo Super Bowl ROM to start a native roster shuffle.";
     els.draftPickSummary.textContent = "No draft started.";
+    els.draftOrder.textContent = "Randomize the draft order to begin.";
     els.draftNeeds.textContent = "Start a draft to see open slots.";
     els.draftBoard.innerHTML = "";
     els.draftLog.innerHTML = "";
@@ -1582,10 +1638,11 @@ function renderDraft() {
   }
 
   if (!draftState) {
-    els.draftStatus.textContent = seedCanStartDraft
-      ? "Smart Shuffle drafts from the loaded ROM's current player records. Names, jersey numbers, and attributes move together."
-      : "Change the random seed to start another draft from this ROM.";
+    els.draftStatus.textContent = mode === "manual"
+      ? "Manual draft: randomize the draft order, then start the draft. Picks will advance until your team is on the clock."
+      : "Automatic draft: Start Draft will randomize the order and draft every team in a timed modal.";
     els.draftPickSummary.textContent = "No draft started.";
+    els.draftOrder.textContent = "Randomize the draft order to begin.";
     els.draftNeeds.textContent = "Start a draft to see open slots.";
     els.draftBoard.innerHTML = "";
     els.draftLog.innerHTML = "";
@@ -1596,14 +1653,21 @@ function renderDraft() {
   const team = playerTable.teams[teamIndex];
   const isUserPick = teamIndex === draftState.userTeamIndex;
   const draftedCount = draftState.pool.filter((player) => player.drafted).length;
+  els.draftOrder.innerHTML = draftState.order.map((teamIndex, index) => `
+    <span class="order-pill${teamIndex === draftState.userTeamIndex ? " user" : ""}">${index + 1}. ${escapeHtml(playerTable.teams[teamIndex]?.name || `Team ${teamIndex + 1}`)}</span>
+  `).join("");
   els.draftStatus.textContent = draftState.complete
     ? `Draft complete. ${draftedCount} players selected.`
-    : `${draftPickLabel()}: ${team.name} is on the clock.${isUserPick ? " Choose a player below." : " Use Auto Draft To My Pick."}`;
+    : !draftState.started
+      ? "Draft order is set. Click Start Draft to advance to your first pick."
+      : `${draftPickLabel()}: ${team.name} is on the clock.${isUserPick ? " Choose a player below." : " Use Auto Draft To My Pick."}`;
   els.draftPickSummary.innerHTML = draftState.complete
     ? "<strong>Draft complete.</strong>"
+    : !draftState.started
+      ? "<strong>Draft order ready.</strong><br>No players drafted yet."
     : `<strong>${escapeHtml(team.name)}</strong><br>${escapeHtml(draftPickLabel())}<br>${draftedCount} of ${draftState.totalPicks} players drafted`;
 
-  const roster = draftState.complete ? draftState.rosters[draftState.userTeamIndex] : draftState.rosters[teamIndex];
+  const roster = draftState.complete || !draftState.started ? draftState.rosters[draftState.userTeamIndex] : draftState.rosters[teamIndex];
   const counts = draftGroupCounts(roster);
   els.draftNeeds.innerHTML = DRAFT_GROUP_ORDER.map((group) => `
     <span class="need-pill${counts[group].open ? "" : " filled"}">${group}: ${counts[group].open}</span>
@@ -1611,7 +1675,7 @@ function renderDraft() {
 
   const query = els.draftSearch.value.trim().toLowerCase();
   const groupFilter = els.draftPositionFilter.value || "ALL";
-  const eligibleTeam = draftState.complete ? draftState.userTeamIndex : teamIndex;
+  const eligibleTeam = draftState.complete || !draftState.started ? draftState.userTeamIndex : teamIndex;
   const rows = draftEligiblePlayersForTeam(eligibleTeam)
     .filter((player) => groupFilter === "ALL" || player.group === groupFilter)
     .filter((player) => !query || player.name.toLowerCase().includes(query) || player.sourceTeam.toLowerCase().includes(query))
@@ -1625,7 +1689,7 @@ function renderDraft() {
         <td>${escapeHtml(player.sourceTeam)}</td>
         <td>${escapeHtml(player.sourceRole)}</td>
         <td>${player.rating}</td>
-        <td>${!draftState.complete && isUserPick ? `<button type="button" data-draft-player="${player.id}">Draft</button>` : ""}</td>
+        <td>${draftState.started && !draftState.complete && isUserPick ? `<button type="button" data-draft-player="${player.id}">Draft</button>` : ""}</td>
       </tr>
     `).join("");
   els.draftBoard.innerHTML = rows || "<tr><td colspan=\"7\">No eligible players available for this filter.</td></tr>";
@@ -2820,20 +2884,28 @@ els.teamSelect.addEventListener("change", () => {
   renderPlayers();
   renderMaddenPreview();
 });
-els.startDraft.addEventListener("click", startSmartDraft);
-els.draftSeed.addEventListener("input", renderDraft);
+els.draftMode.addEventListener("change", renderDraft);
+els.randomizeDraft.addEventListener("click", randomizeDraftOrder);
+els.startDraft.addEventListener("click", () => {
+  if ((els.draftMode.value || "manual") === "automatic") startAutomaticDraft();
+  else startManualDraft();
+});
 els.autoDraft.addEventListener("click", () => withWork("Auto Drafting", "Running AI picks until your team is on the clock...", async () => {
   autoDraftToUserPick();
   updateWork("Auto draft stopped.", 1, 1);
 }, 1));
 els.draftForMe.addEventListener("click", () => {
   autoDraftOnePick(true);
-  renderDraft();
+  autoDraftToUserPick();
 });
 els.completeDraft.addEventListener("click", () => withWork("Completing Draft", "Running AI picks for every remaining roster slot...", async () => {
   completeDraft();
   updateWork("Draft complete.", 1, 1);
 }, 1));
+els.closeDraftModal.addEventListener("click", () => {
+  if (!draftState?.complete) return;
+  els.draftModal.hidden = true;
+});
 els.applyDraft.addEventListener("click", () => withWork("Applying Draft", "Staging drafted rosters...", async () => {
   applyDraftToRom();
   updateWork("Draft staged.", 1, 1);
@@ -2847,7 +2919,7 @@ els.draftBoard.addEventListener("click", (event) => {
   const teamIndex = currentDraftTeamIndex();
   if (teamIndex !== draftState.userTeamIndex) return;
   const player = draftState.pool.find((candidate) => candidate.id === Number(button.dataset.draftPlayer));
-  if (draftPlayerForTeam(teamIndex, player)) renderDraft();
+  if (draftPlayerForTeam(teamIndex, player)) autoDraftToUserPick();
 });
 els.identityTeamSelect.addEventListener("change", renderTeams);
 els.teamIdentityEditor.addEventListener("input", (event) => {
