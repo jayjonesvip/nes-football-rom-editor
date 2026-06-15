@@ -276,6 +276,12 @@ const TSB_SLOT_ROLES_30 = TSB_POSITIONS_30.map((position) => {
 const TSB_ATTRIBUTE_VALUE_STEPS = [6, 13, 19, 25, 31, 38, 44, 50, 56, 63, 69, 75, 81, 88, 94, 100];
 const TSB_IMPORT_NAME_LIMIT = 15;
 const DRAFT_GROUP_ORDER = ["QB", "RB", "REC", "OL", "DL", "LB", "DB", "K", "P"];
+const TSB_FACE_IDS = [
+  ...Array.from({ length: 0x53 }, (_, index) => index),
+  ...Array.from({ length: 0x55 }, (_, index) => 0x80 + index),
+];
+const TSB_FACE_ID_SET = new Set(TSB_FACE_IDS);
+const TSB_FACE_ASSET_PATH = "./assets/faces";
 const DRAFT_BACKUP_SLOTS = new Set(["QB2", "RB3", "RB4", "WR3", "WR4", "TE2"]);
 const AUTOMATIC_DRAFT_PICK_MS = 40;
 
@@ -1275,6 +1281,42 @@ function attributeOffsetForSlot(slotIndex) {
   return playerAttributeTable.start + teamIndex * playerAttributeTable.teamStride + slotOffset;
 }
 
+function faceOffsetForSlot(slotIndex) {
+  const base = attributeOffsetForSlot(slotIndex);
+  return base === null ? null : base + 2;
+}
+
+function readPlayerFace(slotIndex) {
+  const offset = faceOffsetForSlot(slotIndex);
+  if (offset === null || offset >= rom.length) return null;
+  return rom[offset];
+}
+
+function faceAssetName(faceId) {
+  if (!Number.isInteger(faceId)) return "NA.BMP";
+  return `${faceId.toString(16).toUpperCase().padStart(2, "0")}.BMP`;
+}
+
+function facePreviewHtml(faceId, className = "") {
+  const valid = TSB_FACE_ID_SET.has(faceId);
+  const label = valid ? `Face ${byteHex(faceId)}` : "No face";
+  return `
+    <span class="face-preview ${className}" title="${escapeHtml(label)}">
+      <img src="${TSB_FACE_ASSET_PATH}/${valid ? faceAssetName(faceId) : "NA.BMP"}" alt="${escapeHtml(label)}" loading="lazy">
+      <span>${valid ? byteHex(faceId) : "--"}</span>
+    </span>
+  `;
+}
+
+function writePlayerFace(slotIndex, faceId) {
+  const offset = faceOffsetForSlot(slotIndex);
+  if (offset === null || offset >= rom.length || !TSB_FACE_ID_SET.has(faceId)) return false;
+  rom[offset] = faceId;
+  dirty = true;
+  updateDirty();
+  return true;
+}
+
 function readPlayerAttributes(slotIndex) {
   const base = attributeOffsetForSlot(slotIndex);
   if (base === null || base + 4 >= rom.length) return null;
@@ -1727,6 +1769,8 @@ function swapTsbPlayerSlots(sourceSlot, targetTeamSlot) {
   const targetNumber = readPlayerNumber(targetSlot);
   const sourceAttributes = readPlayerAttributes(sourceSlot);
   const targetAttributes = readPlayerAttributes(targetSlot);
+  const sourceFace = readPlayerFace(sourceSlot);
+  const targetFace = readPlayerFace(targetSlot);
 
   pendingNameEdits.set(sourceSlot, targetName);
   pendingNameEdits.set(targetSlot, sourceName);
@@ -1736,6 +1780,11 @@ function swapTsbPlayerSlots(sourceSlot, targetTeamSlot) {
   if (sourceAttributes && targetAttributes) {
     writePlayerAttributeValues(sourceSlot, targetAttributes.values);
     writePlayerAttributeValues(targetSlot, sourceAttributes.values);
+  }
+
+  if (sourceFace !== null && targetFace !== null) {
+    writePlayerFace(sourceSlot, targetFace);
+    writePlayerFace(targetSlot, sourceFace);
   }
 
   selectedPlayerSlot = targetSlot;
@@ -1777,14 +1826,27 @@ function renderPlayerAttributes() {
   }
 
   const attrs = readPlayerAttributes(selectedPlayerSlot);
+  const faceId = readPlayerFace(selectedPlayerSlot);
   if (!attrs) {
     els.attributeStatus.textContent = `${name || "Selected player"} (${role.label})`;
     els.attributeEditor.textContent = "This slot does not have a supported attribute entry.";
     return;
   }
 
-  els.attributeStatus.textContent = `${name || "Selected player"} (${role.label}) attributes at ${hex(attrs.base)}.`;
+  const faceOffset = faceOffsetForSlot(selectedPlayerSlot);
+  els.attributeStatus.textContent = `${name || "Selected player"} (${role.label}) attributes at ${hex(attrs.base)}, face at ${hex(faceOffset)}.`;
   els.attributeEditor.innerHTML = `
+    <div class="face-editor">
+      ${facePreviewHtml(faceId, "large")}
+      <label>
+        <span>Face</span>
+        <select data-face-slot="${selectedPlayerSlot}">
+          ${TSB_FACE_IDS.map((id) => `
+            <option value="${id}"${faceId === id ? " selected" : ""}>${byteHex(id)}</option>
+          `).join("")}
+        </select>
+      </label>
+    </div>
     <table class="attribute-table">
       <thead><tr><th>Attribute</th><th>Rating</th><th>Nibble</th></tr></thead>
       <tbody>
@@ -1828,6 +1890,7 @@ function renderPlayers() {
     const current = readPlayerName(slotIndex);
     const pending = pendingNameEdits.get(slotIndex) ?? current;
     const role = slotRoleForTeamSlot(i);
+    const faceId = readPlayerFace(slotIndex);
     rows.push(`
       <tr class="${selectedPlayerSlot === slotIndex ? "selected-row" : ""}" data-player-row="${slotIndex}">
         <td>${playerTable.format === "tsb-pointer"
@@ -1838,6 +1901,7 @@ function renderPlayers() {
         <td>${playerTable.format === "tsb-pointer"
           ? `<input class="jersey-number-input" data-number-slot="${slotIndex}" type="number" min="0" max="99" value="${escapeHtml(tsbNumberByteToJersey(readPlayerNumber(slotIndex)))}" aria-label="Jersey number for ${escapeHtml(pending)}">`
           : ""}</td>
+        <td>${playerTable.format === "tsb-pointer" && playerAttributeTable?.supported ? facePreviewHtml(faceId) : ""}</td>
         <td>${escapeHtml(current)}</td>
         <td><input class="player-name-input ${playerTable.format === "tsb-pointer" ? "tsb-name-input" : ""}" data-player-slot="${slotIndex}" maxlength="${playerTable.format === "tsb-pointer" ? 17 : 16}" value="${escapeHtml(pending)}"></td>
       </tr>
@@ -3040,6 +3104,15 @@ els.playerTable.addEventListener("change", (event) => {
   swapTsbPlayerSlots(Number(roleSelect.dataset.roleSlot), Number(roleSelect.value));
 });
 els.attributeEditor.addEventListener("change", (event) => {
+  const faceSelect = event.target.closest("[data-face-slot]");
+  if (faceSelect) {
+    selectedPlayerSlot = Number(faceSelect.dataset.faceSlot);
+    if (writePlayerFace(selectedPlayerSlot, Number(faceSelect.value))) {
+      renderPlayers();
+    }
+    return;
+  }
+
   const input = event.target.closest("[data-attribute-index]");
   if (!input) return;
   const index = Number(input.dataset.attributeIndex);

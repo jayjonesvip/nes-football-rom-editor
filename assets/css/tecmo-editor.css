@@ -641,6 +641,57 @@ input[type="range"] {
   font: 12px/1 Consolas, "Courier New", monospace;
 }
 
+.face-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 78px;
+  color: var(--muted);
+  font: 12px/1 Consolas, "Courier New", monospace;
+}
+
+.face-preview img {
+  width: 32px;
+  height: 32px;
+  image-rendering: pixelated;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #111;
+}
+
+.face-preview.large {
+  min-width: 110px;
+}
+
+.face-preview.large img {
+  width: 64px;
+  height: 64px;
+}
+
+.face-editor {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel-raised);
+}
+
+.face-editor label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.face-editor select {
+  min-width: 92px;
+  min-height: 34px;
+  font-family: Consolas, "Courier New", monospace;
+}
+
 .madden-preview {
   margin-top: 12px;
 }
