@@ -1069,11 +1069,11 @@ function renderTeamAi(teamIndex) {
       <h3>Simulation Strength</h3>
       <div class="team-ai-two">
         <label class="team-ai-field">
-          <span>Offense</span>
+          <span>Offense <small>0-15</small></span>
           <input data-team-sim-nibble="offense" type="number" min="0" max="15" value="${offense}">
         </label>
         <label class="team-ai-field">
-          <span>Defense</span>
+          <span>Defense <small>0-15</small></span>
           <input data-team-sim-nibble="defense" type="number" min="0" max="15" value="${defense}">
         </label>
       </div>
@@ -1257,7 +1257,7 @@ function renderTeams() {
 function renderTeamDiff() {
   const aiSets = teamAiSetDiffs();
   if ((!teamStringTable || !pendingTeamEdits.size) && !aiSets.length) {
-    els.teamNameDiff.textContent = "Edit a team or update all team names to preview changes.";
+    els.teamNameDiff.textContent = "Edit a team or sync modern team names to preview changes.";
     enableControls(Boolean(rom));
     return;
   }
@@ -2996,6 +2996,15 @@ document.querySelectorAll(".tab").forEach((tab) => {
   });
 });
 
+document.querySelectorAll(".danger-tab").forEach((tab) => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".danger-tab").forEach((el) => el.classList.remove("active"));
+    document.querySelectorAll(".danger-view").forEach((el) => el.classList.remove("active"));
+    tab.classList.add("active");
+    document.querySelector(`#danger-view-${tab.dataset.dangerView}`).classList.add("active");
+  });
+});
+
 els.hackFilter.addEventListener("change", () => {
   selectedPatch = null;
   renderHackControls();
@@ -3230,7 +3239,7 @@ els.teamAiEditor.addEventListener("change", (event) => {
     renderTeams();
   }
 });
-els.updateTeamNames.addEventListener("click", () => withWork("Updating Team Names", "Staging modern team identities...", async () => {
+els.updateTeamNames.addEventListener("click", () => withWork("Syncing Modern Team Names", "Staging modern team identities...", async () => {
   stageModernTeamNames();
   updateWork("Modern team identities staged.", 28, 28);
 }, 28));

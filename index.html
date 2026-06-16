@@ -46,24 +46,6 @@
         </dl>
       </section>
 
-      <section class="panel">
-        <h2>Tile</h2>
-        <dl id="tile-info" class="summary-grid compact">
-          <dt>Bank</dt>
-          <dd>-</dd>
-          <dt>Tile</dt>
-          <dd>-</dd>
-          <dt>Offset</dt>
-          <dd>-</dd>
-        </dl>
-        <div class="palette-row" id="palette-row" aria-label="Pixel palette"></div>
-        <canvas id="tile-editor" width="256" height="256"></canvas>
-        <div class="tile-actions">
-          <button id="clear-tile" type="button" disabled>Clear</button>
-          <button id="copy-tile" type="button" disabled>Copy</button>
-          <button id="paste-tile" type="button" disabled>Paste</button>
-        </div>
-      </section>
     </aside>
 
     <section class="main-panel">
@@ -73,10 +55,7 @@
         <button class="tab" type="button" data-view="teams">Teams</button>
         <button class="tab" type="button" data-view="colors">Colors</button>
         <button class="tab" type="button" data-view="tsb">TSB Hacks</button>
-        <button class="tab" type="button" data-view="graphics">Graphics</button>
-        <button class="tab" type="button" data-view="map">ROM Map</button>
-        <button class="tab" type="button" data-view="prg">PRG Viewer</button>
-        <button class="tab" type="button" data-view="strings">ASCII</button>
+        <button class="tab" type="button" data-view="danger">Danger Zone</button>
       </nav>
 
       <section id="view-players" class="view active">
@@ -225,7 +204,7 @@
             <select id="identity-team-select" disabled></select>
           </div>
           <div class="player-actions">
-            <button id="update-team-names" type="button" disabled>Update Team Names</button>
+            <button id="update-team-names" type="button" disabled>Sync Modern Team Names</button>
             <button id="apply-team-changes" type="button" disabled>Apply Team Changes</button>
           </div>
         </div>
@@ -245,7 +224,7 @@
 
           <section class="human-section">
             <h2>Team Changes</h2>
-            <div id="team-name-diff" class="hack-detail">Edit a team or update all team names to preview changes.</div>
+            <div id="team-name-diff" class="hack-detail">Edit a team or sync modern team names to preview changes.</div>
           </section>
         </div>
       </section>
@@ -311,67 +290,106 @@
         </section>
       </section>
 
-      <section id="view-graphics" class="view">
-        <div class="view-bar">
-          <div class="control-group">
-            <label for="chr-bank">CHR bank</label>
-            <select id="chr-bank" disabled></select>
-          </div>
-          <div class="control-group">
-            <label for="zoom">Zoom</label>
-            <input id="zoom" type="range" min="1" max="4" value="2">
+      <section id="view-danger" class="view">
+        <div class="danger-header">
+          <div>
+            <h2>Danger Zone</h2>
+            <p class="muted">Low-level graphics and ROM inspection tools.</p>
           </div>
           <span id="dirty-state" class="status-pill">Clean</span>
         </div>
-        <div class="canvas-scroll">
-          <canvas id="chr-canvas" width="256" height="512"></canvas>
-        </div>
-      </section>
 
-      <section id="view-map" class="view">
-        <div class="map-grid">
-          <section>
-            <h2>PRG Banks</h2>
-            <table>
-              <thead>
-                <tr><th>Bank</th><th>File Range</th><th>CPU Window</th></tr>
-              </thead>
-              <tbody id="prg-map"></tbody>
-            </table>
-          </section>
-          <section>
-            <h2>CHR Banks</h2>
-            <table>
-              <thead>
-                <tr><th>Bank</th><th>File Range</th><th>Tiles</th></tr>
-              </thead>
-              <tbody id="chr-map"></tbody>
-            </table>
-          </section>
-        </div>
-      </section>
+        <nav class="danger-tabs" aria-label="Danger zone tools">
+          <button class="danger-tab active" type="button" data-danger-view="graphics">Graphics</button>
+          <button class="danger-tab" type="button" data-danger-view="map">ROM Map</button>
+          <button class="danger-tab" type="button" data-danger-view="prg">PRG Viewer</button>
+          <button class="danger-tab" type="button" data-danger-view="strings">ASCII</button>
+        </nav>
 
-      <section id="view-prg" class="view">
-        <div class="view-bar">
-          <div class="control-group">
-            <label for="prg-bank">PRG bank</label>
-            <select id="prg-bank" disabled></select>
+        <section id="danger-view-graphics" class="danger-view active">
+          <div class="view-bar">
+            <div class="control-group">
+              <label for="chr-bank">CHR bank</label>
+              <select id="chr-bank" disabled></select>
+            </div>
+            <div class="control-group">
+              <label for="zoom">Zoom</label>
+              <input id="zoom" type="range" min="1" max="4" value="2">
+            </div>
           </div>
-        </div>
-        <pre id="hex-view" class="hex-view">Load a ROM to inspect PRG bytes.</pre>
-      </section>
+          <div class="graphics-grid">
+            <section class="human-section">
+              <h2>CHR Viewer</h2>
+              <div class="canvas-scroll">
+                <canvas id="chr-canvas" width="256" height="512"></canvas>
+              </div>
+            </section>
+            <section class="human-section">
+              <h2>Tile Editor</h2>
+              <dl id="tile-info" class="summary-grid compact">
+                <dt>Bank</dt>
+                <dd>-</dd>
+                <dt>Tile</dt>
+                <dd>-</dd>
+                <dt>Offset</dt>
+                <dd>-</dd>
+              </dl>
+              <div class="palette-row" id="palette-row" aria-label="Pixel palette"></div>
+              <canvas id="tile-editor" width="256" height="256"></canvas>
+              <div class="tile-actions">
+                <button id="clear-tile" type="button" disabled>Clear</button>
+                <button id="copy-tile" type="button" disabled>Copy</button>
+                <button id="paste-tile" type="button" disabled>Paste</button>
+              </div>
+            </section>
+          </div>
+        </section>
 
-      <section id="view-strings" class="view">
-        <div class="view-bar">
-          <button id="scan-strings" type="button" disabled>Scan PRG ASCII</button>
-          <span class="muted">Printable runs of 4+ bytes.</span>
-        </div>
-        <table>
-          <thead>
-            <tr><th>Offset</th><th>Bank</th><th>Text</th></tr>
-          </thead>
-          <tbody id="strings-table"></tbody>
-        </table>
+        <section id="danger-view-map" class="danger-view">
+          <div class="map-grid">
+            <section>
+              <h2>PRG Banks</h2>
+              <table>
+                <thead>
+                  <tr><th>Bank</th><th>File Range</th><th>CPU Window</th></tr>
+                </thead>
+                <tbody id="prg-map"></tbody>
+              </table>
+            </section>
+            <section>
+              <h2>CHR Banks</h2>
+              <table>
+                <thead>
+                  <tr><th>Bank</th><th>File Range</th><th>Tiles</th></tr>
+                </thead>
+                <tbody id="chr-map"></tbody>
+              </table>
+            </section>
+          </div>
+        </section>
+
+        <section id="danger-view-prg" class="danger-view">
+          <div class="view-bar">
+            <div class="control-group">
+              <label for="prg-bank">PRG bank</label>
+              <select id="prg-bank" disabled></select>
+            </div>
+          </div>
+          <pre id="hex-view" class="hex-view">Load a ROM to inspect PRG bytes.</pre>
+        </section>
+
+        <section id="danger-view-strings" class="danger-view">
+          <div class="view-bar">
+            <button id="scan-strings" type="button" disabled>Scan PRG ASCII</button>
+            <span class="muted">Printable runs of 4+ bytes.</span>
+          </div>
+          <table>
+            <thead>
+              <tr><th>Offset</th><th>Bank</th><th>Text</th></tr>
+            </thead>
+            <tbody id="strings-table"></tbody>
+          </table>
+        </section>
       </section>
     </section>
   </main>
