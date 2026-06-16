@@ -41,6 +41,9 @@ const els = {
   previewSet: document.querySelector("#preview-set"),
   applySet: document.querySelector("#apply-set"),
   setStatus: document.querySelector("#set-status"),
+  generateChangelog: document.querySelector("#generate-changelog"),
+  downloadChangelog: document.querySelector("#download-changelog"),
+  changelogOutput: document.querySelector("#changelog-output"),
   teamSelect: document.querySelector("#team-select"),
   draftUserTeam: document.querySelector("#draft-user-team"),
   draftMode: document.querySelector("#draft-mode"),
@@ -492,6 +495,7 @@ function setLoadedRom(bytes, name) {
   pendingTeamEdits = new Map();
   pendingTeamAiEdits = new Map();
   pendingColorEdits = new Map();
+  els.changelogOutput.value = "";
   selectedPlayerSlot = 0;
   draftState = null;
   stopAutomaticDraft();
@@ -513,6 +517,7 @@ function enableControls(enabled) {
     els.copyTile,
     els.pasteTile,
     els.importMadden,
+    els.generateChangelog,
   ].forEach((el) => {
     el.disabled = !enabled || (el === els.pasteTile && !copiedTile);
   });
@@ -527,6 +532,7 @@ function enableControls(enabled) {
   els.colorTeamSelect.disabled = !enabled || !looksLikeTsbRom();
   els.applyColorChanges.disabled = !enabled || !pendingColorEdits.size;
   els.applyPlayerNames.disabled = !enabled || (!pendingNameEdits.size && !pendingNumberEdits.size);
+  els.downloadChangelog.disabled = !enabled || !els.changelogOutput.value.trim();
   els.maddenTeamSelect.disabled = !maddenPlayers.length;
   els.applyMaddenTeam.disabled = !enabled || !playerTable || !maddenPlayers.length;
   els.applyMaddenAll.disabled = !enabled || playerTable?.format !== "tsb-pointer" || !maddenPlayers.length;
@@ -993,10 +999,29 @@ function stagePlaybookSlot(teamIndex, slotType, slotIndex, playIndex) {
   if (offset === null) return;
   const currentByte = pendingOrCurrentByte(offset);
   if (currentByte === null) return;
-  const nibble = Math.max(0, Math.min(7, playIndex)) & 0x0F;
+  const currentNibble = readPlaybookSlot(teamIndex, slotType, slotIndex) ?? 0;
+  const nibble = (Math.max(0, Math.min(7, playIndex)) | (currentNibble & 0x08)) & 0x0F;
   const nextByte = slotIndex % 2 === 0
     ? ((nibble << 4) | (currentByte & 0x0F))
     : ((currentByte & 0xF0) | nibble);
+  stageTeamAiByte(offset, nextByte);
+}
+
+function flipPlaybookSlot(teamIndex, slotType, slotIndex) {
+  const currentNibble = readPlaybookSlot(teamIndex, slotType, slotIndex);
+  if (currentNibble === null) return;
+  stagePlaybookSlotNibble(teamIndex, slotType, slotIndex, currentNibble ^ 0x08);
+}
+
+function stagePlaybookSlotNibble(teamIndex, slotType, slotIndex, nibble) {
+  const offset = playbookByteOffset(teamIndex, slotType, slotIndex);
+  if (offset === null) return;
+  const currentByte = pendingOrCurrentByte(offset);
+  if (currentByte === null) return;
+  const nextNibble = nibble & 0x0F;
+  const nextByte = slotIndex % 2 === 0
+    ? ((nextNibble << 4) | (currentByte & 0x0F))
+    : ((currentByte & 0xF0) | nextNibble);
   stageTeamAiByte(offset, nextByte);
 }
 
@@ -1019,7 +1044,9 @@ function playbookImage(slotType, slotIndex, playIndex) {
 }
 
 function playbookSlotHtml(teamIndex, slotType, slotIndex) {
-  const playIndex = readPlaybookSlot(teamIndex, slotType, slotIndex);
+  const playValue = readPlaybookSlot(teamIndex, slotType, slotIndex);
+  const playIndex = playValue === null ? null : playValue & 0x07;
+  const flipped = playValue !== null && Boolean(playValue & 0x08);
   const prefix = slotType === "run" ? "R" : "P";
   const playLabel = `${prefix}${slotIndex + 1}`;
   return `
@@ -1032,7 +1059,8 @@ function playbookSlotHtml(teamIndex, slotType, slotIndex) {
           `).join("")}
         </select>
       </div>
-      ${playIndex === null ? "" : `<img src="${playbookImage(slotType, slotIndex, playIndex)}" alt="${playLabel}-${playIndex + 1}" loading="lazy">`}
+      ${playIndex === null ? "" : `<img class="${flipped ? "flipped-play" : ""}" src="${playbookImage(slotType, slotIndex, playIndex)}" alt="${playLabel}-${playIndex + 1}${flipped ? " flipped" : ""}" loading="lazy">`}
+      <button class="playbook-flip" data-playbook-flip="${slotType}:${slotIndex}" type="button">${flipped ? "Unflip" : "Flip"}</button>
     </div>
   `;
 }
@@ -2841,6 +2869,225 @@ function renderSetDiff(sets) {
   return `<div class="set-diff">${rows}</div>`;
 }
 
+function applySetsToBytes(target, sets) {
+  for (const set of sets) {
+    const hexBytes = normalizeHexBytes(set.hex);
+    const byteCount = hexBytes.length / 2;
+    if (!Number.isInteger(set.offset) || set.offset < 0 || set.offset + byteCount > target.length) {
+      throw new Error(`${hex(set.offset)} writes past the end of this ROM.`);
+    }
+    for (let i = 0; i < byteCount; i += 1) {
+      target[set.offset + i] = Number.parseInt(hexBytes.slice(i * 2, i * 2 + 2), 16);
+    }
+  }
+}
+
+function writePendingTeamStringsToBytes(target) {
+  if (!teamStringTable || !pendingTeamEdits.size) return;
+  const image = buildTeamStringTableImage(false);
+  image.pointers.forEach((pointer, index) => {
+    const offset = teamStringTable.start + index * 2;
+    target[offset] = pointer & 0xFF;
+    target[offset + 1] = (pointer >> 8) & 0xFF;
+  });
+  target.fill(0xFF, teamStringTable.dataStart, teamStringTable.limit);
+  let offset = teamStringTable.dataStart;
+  image.encodedStrings.forEach((bytes) => {
+    target.set(bytes, offset);
+    offset += bytes.length;
+  });
+}
+
+function writePendingPlayerNamesToBytes(target) {
+  if (!playerTable || (!pendingNameEdits.size && !pendingNumberEdits.size)) return;
+  if (playerTable.format !== "tsb-pointer") {
+    applySetsToBytes(target, pendingNameSets());
+    return;
+  }
+
+  const records = [];
+  let totalLength = 0;
+  for (let slotIndex = 0; slotIndex < playerTable.count; slotIndex += 1) {
+    const name = pendingNameEdits.get(slotIndex) ?? readPlayerName(slotIndex);
+    const encoded = displayToTsbName(name);
+    const record = new Uint8Array(1 + encoded.length);
+    record[0] = readPlayerNumber(slotIndex);
+    for (let i = 0; i < encoded.length; i += 1) record[i + 1] = encoded.charCodeAt(i);
+    records.push(record);
+    totalLength += record.length;
+  }
+
+  if (playerTable.dataStart + totalLength > playerTable.dataLimit) {
+    throw new Error(`The edited TSB names need ${totalLength} bytes, but only ${playerTable.dataLimit - playerTable.dataStart} bytes are available.`);
+  }
+
+  target.fill(0xFF, playerTable.dataStart, playerTable.dataLimit);
+  let dataOffset = playerTable.dataStart;
+  records.forEach((record, slotIndex) => {
+    const pointer = dataOffset - 0x10 + 0x8000;
+    const pointerOffset = playerTable.pointerStart + slotIndex * 2;
+    target[pointerOffset] = pointer & 0xFF;
+    target[pointerOffset + 1] = (pointer >> 8) & 0xFF;
+    target.set(record, dataOffset);
+    dataOffset += record.length;
+  });
+
+  const endPointer = dataOffset - 0x10 + 0x8000;
+  target[playerTable.endPointerOffset] = endPointer & 0xFF;
+  target[playerTable.endPointerOffset + 1] = (endPointer >> 8) & 0xFF;
+}
+
+function romSnapshotWithPendingChanges() {
+  if (!rom) throw new Error("Load a ROM first.");
+  const snapshot = new Uint8Array(rom);
+  writePendingPlayerNamesToBytes(snapshot);
+  writePendingTeamStringsToBytes(snapshot);
+  applySetsToBytes(snapshot, teamAiSetDiffs());
+  applySetsToBytes(snapshot, colorSetDiffs());
+  return snapshot;
+}
+
+function byteDiffRanges(before, after) {
+  const ranges = [];
+  const length = Math.min(before.length, after.length);
+  let start = null;
+  for (let i = 0; i < length; i += 1) {
+    if (before[i] !== after[i]) {
+      if (start === null) start = i;
+    } else if (start !== null) {
+      ranges.push({ offset: start, before: Array.from(before.slice(start, i)), after: Array.from(after.slice(start, i)) });
+      start = null;
+    }
+  }
+  if (start !== null) ranges.push({ offset: start, before: Array.from(before.slice(start, length)), after: Array.from(after.slice(start, length)) });
+  return ranges;
+}
+
+function markdownBytePreview(bytes) {
+  const shown = bytes.slice(0, 24).map(byteHex).join(" ");
+  return bytes.length > 24 ? `${shown} ...` : shown;
+}
+
+function markdownEscape(value) {
+  return String(value).replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
+}
+
+function pendingRosterMarkdown() {
+  if (!playerTable || (!pendingNameEdits.size && !pendingNumberEdits.size)) return [];
+  const slots = Array.from(new Set([...pendingNameEdits.keys(), ...pendingNumberEdits.keys()])).sort((a, b) => a - b);
+  const lines = ["## Pending Roster Edits", "", "| Team | Slot | Name | Jersey |", "| --- | --- | --- | --- |"];
+  slots.forEach((slotIndex) => {
+    const teamIndex = Math.floor(slotIndex / playerTable.slotsPerTeam);
+    const role = TSB_POSITIONS_30[slotIndex % playerTable.slotsPerTeam] || `Slot ${slotIndex + 1}`;
+    const team = playerTable.teams[teamIndex]?.name || `Team ${teamIndex + 1}`;
+    const beforeName = readPlayerName(slotIndex);
+    const afterName = pendingNameEdits.get(slotIndex) ?? beforeName;
+    const beforeNumber = readStoredPlayerNumber(slotIndex);
+    const afterNumber = readPlayerNumber(slotIndex);
+    const jersey = beforeNumber === afterNumber
+      ? tsbNumberByteToJersey(afterNumber)
+      : `${tsbNumberByteToJersey(beforeNumber)} -> ${tsbNumberByteToJersey(afterNumber)}`;
+    lines.push(`| ${markdownEscape(team)} | ${markdownEscape(role)} | ${markdownEscape(beforeName)} -> ${markdownEscape(afterName)} | ${markdownEscape(jersey)} |`);
+  });
+  return lines;
+}
+
+function pendingTeamMarkdown() {
+  const lines = [];
+  if (teamStringTable && pendingTeamEdits.size) {
+    const teamIndexes = Array.from(new Set(Array.from(pendingTeamEdits.keys()).map((index) => index % 32)))
+      .filter((index) => index < teamStringTable.teamCount)
+      .sort((a, b) => a - b);
+    lines.push("## Pending Team Name Edits", "", "| Team | Before | After |", "| --- | --- | --- |");
+    teamIndexes.forEach((teamIndex) => {
+      const before = `${readTeamString(teamIndex + 32)} ${readTeamString(teamIndex + 64)} (${readTeamString(teamIndex)})`;
+      const afterIdentity = teamIdentity(teamIndex);
+      const after = `${afterIdentity.city} ${afterIdentity.nickname} (${afterIdentity.abbreviation})`;
+      lines.push(`| ${teamIndex + 1} | ${markdownEscape(before)} | ${markdownEscape(after)} |`);
+    });
+  }
+  return lines;
+}
+
+function pendingAiMarkdown() {
+  if (!pendingTeamAiEdits.size) return [];
+  const lines = ["## Pending Team AI / Playbook Edits", "", "| Offset | Current | New |", "| --- | --- | --- |"];
+  Array.from(pendingTeamAiEdits.entries()).sort(([a], [b]) => a - b).forEach(([offset, value]) => {
+    lines.push(`| ${hex(offset)} | ${byteHex(rom[offset])} | ${byteHex(value)} |`);
+  });
+  return lines;
+}
+
+function pendingColorMarkdown() {
+  if (!pendingColorEdits.size) return [];
+  const lines = ["## Pending Color Edits", "", "| Offset | Current | New |", "| --- | --- | --- |"];
+  Array.from(pendingColorEdits.entries()).sort(([a], [b]) => a - b).forEach(([offset, value]) => {
+    lines.push(`| ${hex(offset)} | ${byteHex(rom[offset])} | ${byteHex(value)} |`);
+  });
+  return lines;
+}
+
+function buildChangeLogMarkdown() {
+  if (!rom || !originalRom) return "# Tecmo Super Bowl ROM Change Log\n\nLoad a ROM before generating a change log.\n";
+  const snapshot = romSnapshotWithPendingChanges();
+  const ranges = byteDiffRanges(originalRom, snapshot);
+  const changedBytes = ranges.reduce((sum, range) => sum + range.before.length, 0);
+  const lines = [
+    "# Tecmo Super Bowl ROM Change Log",
+    "",
+    `- Source ROM: ${romName}`,
+    `- Generated: ${new Date().toLocaleString()}`,
+    `- Changed byte ranges: ${ranges.length}`,
+    `- Changed bytes: ${changedBytes}`,
+    `- Includes staged edits: ${pendingNameEdits.size || pendingNumberEdits.size || pendingTeamEdits.size || pendingTeamAiEdits.size || pendingColorEdits.size ? "yes" : "no"}`,
+    "",
+  ];
+
+  [
+    pendingRosterMarkdown(),
+    pendingTeamMarkdown(),
+    pendingAiMarkdown(),
+    pendingColorMarkdown(),
+  ].forEach((section) => {
+    if (section.length) lines.push(...section, "");
+  });
+
+  lines.push("## Byte Audit", "");
+  if (!ranges.length) {
+    lines.push("No byte changes detected from the original loaded ROM.");
+  } else {
+    lines.push("| Offset | Length | Original | Edited |", "| --- | ---: | --- | --- |");
+    ranges.slice(0, 400).forEach((range) => {
+      lines.push(`| ${hex(range.offset)} | ${range.before.length} | \`${markdownBytePreview(range.before)}\` | \`${markdownBytePreview(range.after)}\` |`);
+    });
+    if (ranges.length > 400) {
+      lines.push("", `Only the first 400 byte ranges are listed. ${ranges.length - 400} additional range(s) were omitted.`);
+    }
+  }
+
+  return `${lines.join("\n")}\n`;
+}
+
+function generateChangeLog() {
+  try {
+    els.changelogOutput.value = buildChangeLogMarkdown();
+    enableControls(Boolean(rom));
+  } catch (error) {
+    els.changelogOutput.value = `# Tecmo Super Bowl ROM Change Log\n\nCould not generate change log: ${error.message}\n`;
+    enableControls(Boolean(rom));
+  }
+}
+
+function downloadChangeLog() {
+  const markdown = els.changelogOutput.value || buildChangeLogMarkdown();
+  const blob = new Blob([markdown], { type: "text/markdown" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `README_tsb_${timestampForFilename()}.md`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 function applySets(sets) {
   if (!rom) throw new Error("Load a ROM first.");
   let written = 0;
@@ -3088,6 +3335,12 @@ els.revertRom.addEventListener("click", async () => {
     updateWork("ROM restored.", 1, 1);
   }, 1);
 });
+els.generateChangelog.addEventListener("click", () => withWork("Generating README", "Comparing current ROM bytes...", async () => {
+  generateChangeLog();
+  updateWork("README generated.", 1, 1);
+}, 1));
+els.downloadChangelog.addEventListener("click", downloadChangeLog);
+els.changelogOutput.addEventListener("input", () => enableControls(Boolean(rom)));
 els.chrBank.addEventListener("change", () => {
   selectedChrBank = Number(els.chrBank.value);
   selectedTile = 0;
@@ -3238,6 +3491,14 @@ els.teamAiEditor.addEventListener("change", (event) => {
     stagePlaybookSlot(teamIndex, slotType, Number(slotIndex), Number(playbook.value));
     renderTeams();
   }
+});
+els.teamAiEditor.addEventListener("click", (event) => {
+  const flipButton = event.target.closest("[data-playbook-flip]");
+  if (!flipButton) return;
+  const teamIndex = Number(els.identityTeamSelect.value || 0);
+  const [slotType, slotIndex] = flipButton.dataset.playbookFlip.split(":");
+  flipPlaybookSlot(teamIndex, slotType, Number(slotIndex));
+  renderTeams();
 });
 els.updateTeamNames.addEventListener("click", () => withWork("Syncing Modern Team Names", "Staging modern team identities...", async () => {
   stageModernTeamNames();

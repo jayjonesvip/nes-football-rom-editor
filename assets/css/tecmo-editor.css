@@ -886,6 +886,19 @@ input[type="range"] {
   background: #101417;
 }
 
+.playbook-card img.flipped-play {
+  transform: scaleX(-1);
+}
+
+.playbook-flip {
+  min-height: 30px;
+  padding: 0 8px;
+}
+
+.changelog-output {
+  min-height: 520px;
+}
+
 .color-editor {
   display: grid;
   gap: 16px;

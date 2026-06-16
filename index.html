@@ -55,6 +55,7 @@
         <button class="tab" type="button" data-view="teams">Teams</button>
         <button class="tab" type="button" data-view="colors">Colors</button>
         <button class="tab" type="button" data-view="tsb">TSB Hacks</button>
+        <button class="tab" type="button" data-view="changelog">Change Log</button>
         <button class="tab" type="button" data-view="danger">Danger Zone</button>
       </nav>
 
@@ -288,6 +289,20 @@
             <span id="set-status" class="muted"></span>
           </div>
         </section>
+      </section>
+
+      <section id="view-changelog" class="view">
+        <div class="view-bar">
+          <div>
+            <h2>ROM Change Log</h2>
+            <p class="muted">Generate a Markdown README from the current ROM edits and staged changes.</p>
+          </div>
+          <div class="player-actions">
+            <button id="generate-changelog" type="button" disabled>Generate README</button>
+            <button id="download-changelog" type="button" disabled>Download README</button>
+          </div>
+        </div>
+        <textarea id="changelog-output" class="changelog-output" spellcheck="false" placeholder="Load a ROM, make edits, then generate a Markdown README."></textarea>
       </section>
 
       <section id="view-danger" class="view">
