@@ -218,6 +218,59 @@ dd {
   border-bottom-color: var(--panel);
 }
 
+.danger-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.danger-header h2 {
+  margin: 0 0 4px;
+}
+
+.danger-header p {
+  margin: 0;
+}
+
+.danger-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 14px;
+}
+
+.danger-tab {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  border-bottom-color: transparent;
+  background: #171c1f;
+}
+
+.danger-tab.active {
+  background: var(--panel);
+  color: var(--teal);
+  border-color: var(--line);
+  border-bottom-color: var(--panel);
+}
+
+.danger-view {
+  display: none;
+}
+
+.danger-view.active {
+  display: block;
+}
+
+.graphics-grid {
+  display: grid;
+  grid-template-columns: minmax(360px, 1.4fr) minmax(260px, 0.8fr);
+  gap: 14px;
+  align-items: start;
+}
+
 .view {
   display: none;
 }
@@ -771,6 +824,11 @@ input[type="range"] {
   font-size: 13px;
 }
 
+.team-ai-field small {
+  color: var(--teal);
+  font: inherit;
+}
+
 .team-ai-field input,
 .team-ai-field select {
   min-height: 34px;
@@ -1019,6 +1077,10 @@ tr:last-child td {
   }
 
   .map-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .graphics-grid {
     grid-template-columns: 1fr;
   }
 
