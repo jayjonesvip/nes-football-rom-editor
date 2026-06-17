@@ -1,11 +1,11 @@
 # Tecmo ROM Workshop
 
-A GitHub Pages-ready browser editor for the original 28-team NES Tecmo Super Bowl ROM, with external player imports, player ratings, team names, uniforms, playbooks, AI tendencies, gameplay patches, and exportable ROM change logs.
+A GitHub Pages-ready browser editor for the original 28-team NES Tecmo Super Bowl ROM, with roster management, player ratings, team names, uniforms, playbooks, AI tendencies, gameplay patches, graphics tools, and exportable ROM change logs.
 
 Suggested GitHub repo description:
 
 ```text
-Browser-based Tecmo Super Bowl NES ROM editor for rosters, ratings, teams, colors, playbooks, AI tendencies, gameplay patches, and external player imports.
+Browser-based Tecmo Super Bowl NES ROM editor for rosters, ratings, teams, colors, playbooks, AI tendencies, gameplay patches, and graphics.
 ```
 
 ## GitHub Pages Deployment
@@ -25,10 +25,20 @@ The application must be served over HTTP so the browser can load the bundled ext
 Using Python:
 
 ```powershell
-python -m http.server 8080 --directory github-pages
+python -m http.server 8080 --directory .
 ```
 
 Then open `http://localhost:8080/`.
+
+## Main Workflow
+
+1. Open a legally obtained 28-team Tecmo Super Bowl `.nes` ROM.
+2. Use **Players > Roster Management** to either update rosters from external player data or run an automatic re-draft.
+3. Review the staged roster changes in the player table and red/green diff.
+4. Click **Finalize Roster** to rebuild the compact TSB roster records.
+5. Export the edited ROM.
+
+Roster management actions intentionally stage changes first. This makes the dirty byte preview visible before the roster block is rebuilt.
 
 ## Published Structure
 
@@ -52,7 +62,8 @@ reference/
 - Visitors must open their own legally obtained Tecmo Super Bowl ROM.
 - The application edits an in-memory copy and exports a new timestamped `.nes` file.
 - `assets/data/data.csv` provides external player-data imports on static hosting.
-- The bundled CSV includes jersey numbers for most players, and the editor applies them to Tecmo roster records.
+- The bundled CSV includes jersey numbers for most players; missing numbers are filled from available team/position ranges during roster updates.
+- **Re-Draft** uses the loaded ROM's current roster pool and attributes, then stages the shuffled rosters for review.
 - Live EA detail requests require the optional development proxy and are not used on GitHub Pages.
 - Do not add or distribute copyrighted ROM files with the site.
 
@@ -61,7 +72,7 @@ reference/
 Replace `assets/data/data.csv` with a newer compatible CSV:
 
 ```powershell
-Invoke-WebRequest <compatible-player-data-csv-url> -OutFile github-pages/assets/data/data.csv
+Invoke-WebRequest <compatible-player-data-csv-url> -OutFile assets/data/data.csv
 ```
 
 The CSV should include columns for player name, team, position, overall rating, speed, strength, agility, awareness, and jersey number.

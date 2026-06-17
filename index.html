@@ -4,14 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tecmo ROM Workshop</title>
-  <meta name="description" content="Browser-based Tecmo Super Bowl NES ROM editor for rosters, ratings, teams, colors, playbooks, AI tendencies, external player imports, and gameplay patches.">
+  <meta name="description" content="Browser-based Tecmo Super Bowl NES ROM editor for roster management, ratings, teams, colors, playbooks, AI tendencies, graphics, and gameplay patches.">
   <link rel="stylesheet" href="assets/css/tecmo-editor.css">
 </head>
 <body>
   <header class="app-header">
     <div>
       <h1>Tecmo ROM Workshop</h1>
-      <p id="rom-subtitle">Load a NES ROM to inspect and edit raw CHR graphics.</p>
+      <p id="rom-subtitle">Load a NES ROM to manage rosters, teams, colors, graphics, and gameplay patches.</p>
     </div>
     <div class="toolbar">
       <button id="load-bundled" type="button" title="Load the bundled ROM" hidden>Load Bundled</button>
@@ -51,13 +51,11 @@
     <section class="main-panel">
       <nav class="tabs" aria-label="Editor views">
         <button class="tab active" type="button" data-view="players">Players</button>
-        <button class="tab" type="button" data-view="import">Import Players</button>
-        <button class="tab" type="button" data-view="draft">Draft</button>
         <button class="tab" type="button" data-view="teams">Teams</button>
         <button class="tab" type="button" data-view="colors">Colors</button>
         <button class="tab" type="button" data-view="tsb">TSB Hacks</button>
         <button class="tab" type="button" data-view="changelog">Change Log</button>
-        <button class="tab" type="button" data-view="danger">Danger Zone</button>
+        <button class="tab" type="button" data-view="graphics">Graphics</button>
       </nav>
 
       <section id="view-players" class="view active">
@@ -67,11 +65,20 @@
             <select id="team-select" disabled></select>
           </div>
           <div class="player-actions">
-            <button id="apply-player-names" type="button" disabled>Apply All Changes</button>
+            <button id="apply-player-names" type="button" disabled>Finalize Roster</button>
           </div>
         </div>
 
         <div class="human-grid">
+          <section class="human-section">
+            <h2>Roster Management</h2>
+            <div class="player-actions">
+              <button id="update-rosters" type="button" disabled>Update Rosters</button>
+              <button id="redraft-rosters" type="button" disabled>Re-Draft</button>
+            </div>
+            <div id="madden-status" class="muted">Load a 28-team Tecmo Super Bowl ROM to update rosters from external player data or run an automatic re-draft.</div>
+          </section>
+
           <section class="human-section">
             <h2 id="roster-heading">Roster Slots</h2>
             <div id="player-status" class="muted">Load a ROM to detect editable player names.</div>
@@ -94,120 +101,6 @@
           </section>
         </div>
       </section>
-
-      <section id="view-import" class="view">
-        <section class="human-section set-box">
-          <div id="import-start" class="import-start">
-            <button id="import-madden" type="button">Import Players</button>
-          </div>
-
-          <div id="import-workspace" hidden>
-            <h2 id="madden-heading">External Player Data</h2>
-            <div class="import-sync-flow">
-              <section class="import-sync-card">
-                <h3>External</h3>
-                <label for="madden-team-select">Team</label>
-                <select id="madden-team-select" disabled></select>
-              </section>
-              <div class="import-arrow" aria-hidden="true">-></div>
-              <section class="import-sync-card import-sync-target">
-                <h3>Tecmo</h3>
-                <div id="import-tecmo-team-text" class="import-team-target">Select a team</div>
-              </section>
-            </div>
-
-            <div class="player-actions import-actions">
-              <button id="apply-madden-team" type="button" disabled>Sync Selected Team</button>
-              <button id="apply-madden-all" type="button" disabled>Sync All Teams</button>
-            </div>
-            <div id="madden-status" class="muted">External player data loaded. Choose an external team, then sync it into the selected Tecmo team.</div>
-            <table class="madden-preview">
-              <thead>
-                <tr><th>Player</th><th>#</th><th>Pos</th><th>Team</th><th>OVR</th><th>SPD</th><th>STR</th><th>AGI</th><th>AWR</th></tr>
-              </thead>
-              <tbody id="madden-preview"></tbody>
-            </table>
-          </div>
-        </section>
-      </section>
-
-      <section id="view-draft" class="view">
-        <div class="view-bar">
-          <div class="control-group">
-            <label for="draft-user-team">Your team</label>
-            <select id="draft-user-team" disabled></select>
-          </div>
-          <div class="control-group">
-            <label for="draft-mode">Workflow</label>
-            <select id="draft-mode" disabled>
-              <option value="manual" selected>Manual</option>
-              <option value="automatic">Automatic</option>
-            </select>
-          </div>
-          <div class="player-actions">
-            <button id="randomize-draft" type="button" disabled>Randomize Draft Order</button>
-            <button id="start-draft" type="button" disabled>Start Draft</button>
-            <button id="auto-draft" type="button" disabled>Auto Draft To My Pick</button>
-            <button id="draft-for-me" type="button" disabled>Draft For Me</button>
-            <button id="complete-draft" type="button" disabled>Complete Draft</button>
-            <button id="apply-draft" type="button" disabled>Apply Draft To ROM</button>
-            <button id="reset-draft" type="button" disabled>Reset Draft</button>
-          </div>
-        </div>
-
-        <div class="human-grid draft-grid">
-          <section class="human-section">
-            <h2>Draft Board</h2>
-            <div id="draft-status" class="muted">Load the 28-team Tecmo Super Bowl ROM to start a native roster shuffle.</div>
-            <div class="draft-filters">
-              <input id="draft-search" type="search" placeholder="Search players" disabled>
-              <select id="draft-position-filter" disabled>
-                <option value="ALL">All positions</option>
-                <option value="QB">QB</option>
-                <option value="RB">RB</option>
-                <option value="REC">WR/TE</option>
-                <option value="OL">OL</option>
-                <option value="DL">DL</option>
-                <option value="LB">LB</option>
-                <option value="DB">DB</option>
-                <option value="K">K</option>
-                <option value="P">P</option>
-              </select>
-            </div>
-            <div class="player-table-wrap">
-              <table class="player-table draft-table">
-                <thead>
-                  <tr><th>Pick</th><th>Player</th><th>#</th><th>Orig</th><th>Role</th><th>Rating</th><th></th></tr>
-                </thead>
-                <tbody id="draft-board"></tbody>
-              </table>
-            </div>
-          </section>
-
-          <section class="human-section">
-            <h2>Current Pick</h2>
-            <div id="draft-pick-summary" class="draft-pick-summary">No draft started.</div>
-            <h2>Draft Order</h2>
-            <div id="draft-order" class="draft-order">Randomize the draft order to begin.</div>
-            <h2>Roster Needs</h2>
-            <div id="draft-needs" class="draft-needs">Start a draft to see open slots.</div>
-            <h2>Draft Log</h2>
-            <div id="draft-log" class="draft-log"></div>
-          </section>
-        </div>
-      </section>
-
-      <div id="draft-modal" class="work-overlay" hidden>
-        <div class="work-card draft-modal-card">
-          <h2>Automatic Draft</h2>
-          <p id="draft-modal-current">Preparing draft...</p>
-          <progress id="draft-modal-progress" value="0" max="840"></progress>
-          <div id="draft-modal-log" class="draft-log modal-log"></div>
-          <div class="patch-actions">
-            <button id="close-draft-modal" type="button" disabled>Close</button>
-          </div>
-        </div>
-      </div>
 
       <section id="view-teams" class="view">
         <div class="view-bar">
@@ -316,106 +209,51 @@
         <textarea id="changelog-output" class="changelog-output" spellcheck="false" placeholder="Load a ROM, make edits, then generate a Markdown README."></textarea>
       </section>
 
-      <section id="view-danger" class="view">
+      <section id="view-graphics" class="view">
         <div class="danger-header">
           <div>
-            <h2>Danger Zone</h2>
-            <p class="muted">Low-level graphics and ROM inspection tools.</p>
+            <h2>Graphics</h2>
+            <p class="muted">CHR graphics viewer and tile editor.</p>
           </div>
           <span id="dirty-state" class="status-pill">Clean</span>
         </div>
 
-        <nav class="danger-tabs" aria-label="Danger zone tools">
-          <button class="danger-tab active" type="button" data-danger-view="graphics">Graphics</button>
-          <button class="danger-tab" type="button" data-danger-view="map">ROM Map</button>
-          <button class="danger-tab" type="button" data-danger-view="prg">PRG Viewer</button>
-          <button class="danger-tab" type="button" data-danger-view="strings">ASCII</button>
-        </nav>
-
-        <section id="danger-view-graphics" class="danger-view active">
-          <div class="view-bar">
-            <div class="control-group">
-              <label for="chr-bank">CHR bank</label>
-              <select id="chr-bank" disabled></select>
+        <div class="view-bar">
+          <div class="control-group">
+            <label for="chr-bank">CHR bank</label>
+            <select id="chr-bank" disabled></select>
+          </div>
+          <div class="control-group">
+            <label for="zoom">Zoom</label>
+            <input id="zoom" type="range" min="1" max="4" value="2">
+          </div>
+        </div>
+        <div class="graphics-grid">
+          <section class="human-section">
+            <h2>CHR Viewer</h2>
+            <div class="canvas-scroll">
+              <canvas id="chr-canvas" width="256" height="512"></canvas>
             </div>
-            <div class="control-group">
-              <label for="zoom">Zoom</label>
-              <input id="zoom" type="range" min="1" max="4" value="2">
+          </section>
+          <section class="human-section">
+            <h2>Tile Editor</h2>
+            <dl id="tile-info" class="summary-grid compact">
+              <dt>Bank</dt>
+              <dd>-</dd>
+              <dt>Tile</dt>
+              <dd>-</dd>
+              <dt>Offset</dt>
+              <dd>-</dd>
+            </dl>
+            <div class="palette-row" id="palette-row" aria-label="Pixel palette"></div>
+            <canvas id="tile-editor" width="256" height="256"></canvas>
+            <div class="tile-actions">
+              <button id="clear-tile" type="button" disabled>Clear</button>
+              <button id="copy-tile" type="button" disabled>Copy</button>
+              <button id="paste-tile" type="button" disabled>Paste</button>
             </div>
+          </section>
           </div>
-          <div class="graphics-grid">
-            <section class="human-section">
-              <h2>CHR Viewer</h2>
-              <div class="canvas-scroll">
-                <canvas id="chr-canvas" width="256" height="512"></canvas>
-              </div>
-            </section>
-            <section class="human-section">
-              <h2>Tile Editor</h2>
-              <dl id="tile-info" class="summary-grid compact">
-                <dt>Bank</dt>
-                <dd>-</dd>
-                <dt>Tile</dt>
-                <dd>-</dd>
-                <dt>Offset</dt>
-                <dd>-</dd>
-              </dl>
-              <div class="palette-row" id="palette-row" aria-label="Pixel palette"></div>
-              <canvas id="tile-editor" width="256" height="256"></canvas>
-              <div class="tile-actions">
-                <button id="clear-tile" type="button" disabled>Clear</button>
-                <button id="copy-tile" type="button" disabled>Copy</button>
-                <button id="paste-tile" type="button" disabled>Paste</button>
-              </div>
-            </section>
-          </div>
-        </section>
-
-        <section id="danger-view-map" class="danger-view">
-          <div class="map-grid">
-            <section>
-              <h2>PRG Banks</h2>
-              <table>
-                <thead>
-                  <tr><th>Bank</th><th>File Range</th><th>CPU Window</th></tr>
-                </thead>
-                <tbody id="prg-map"></tbody>
-              </table>
-            </section>
-            <section>
-              <h2>CHR Banks</h2>
-              <table>
-                <thead>
-                  <tr><th>Bank</th><th>File Range</th><th>Tiles</th></tr>
-                </thead>
-                <tbody id="chr-map"></tbody>
-              </table>
-            </section>
-          </div>
-        </section>
-
-        <section id="danger-view-prg" class="danger-view">
-          <div class="view-bar">
-            <div class="control-group">
-              <label for="prg-bank">PRG bank</label>
-              <select id="prg-bank" disabled></select>
-            </div>
-          </div>
-          <pre id="hex-view" class="hex-view">Load a ROM to inspect PRG bytes.</pre>
-        </section>
-
-        <section id="danger-view-strings" class="danger-view">
-          <div class="view-bar">
-            <button id="scan-strings" type="button" disabled>Scan PRG ASCII</button>
-            <span class="muted">Printable runs of 4+ bytes.</span>
-          </div>
-          <table>
-            <thead>
-              <tr><th>Offset</th><th>Bank</th><th>Text</th></tr>
-            </thead>
-            <tbody id="strings-table"></tbody>
-          </table>
-        </section>
       </section>
     </section>
   </main>
