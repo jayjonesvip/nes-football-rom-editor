@@ -835,7 +835,8 @@ input[type="range"] {
   font-size: 13px;
 }
 
-.team-field input {
+.team-field input,
+.team-field select {
   width: 100%;
   min-height: 38px;
   border: 1px solid var(--line);
@@ -844,7 +845,17 @@ input[type="range"] {
   background: var(--dark);
   color: var(--ink);
   font-family: Consolas, "Courier New", monospace;
+}
+
+.team-field input {
   text-transform: uppercase;
+}
+
+.team-source-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .team-name-preview {
