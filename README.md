@@ -40,6 +40,8 @@ Then open `http://localhost:8080/`.
 
 Roster management actions intentionally stage changes first. This makes the dirty byte preview visible before the roster block is rebuilt.
 
+The ROM remains a 28-team game. In **Teams**, the displayed city, nickname, and abbreviation can be renamed independently from the **External Roster Source** used by roster updates. This lets one original team slot represent a different modern roster without guessing from text changes; for example, a renamed slot only imports Jacksonville players after its External Roster Source is explicitly changed to `Jacksonville Jaguars`.
+
 ## Published Structure
 
 ```text
@@ -63,6 +65,7 @@ reference/
 - The application edits an in-memory copy and exports a new timestamped `.nes` file.
 - `assets/data/data.csv` provides external player-data imports on static hosting.
 - The bundled CSV includes jersey numbers for most players; missing numbers are filled from available team/position ranges during roster updates.
+- Team-name edits do not redirect roster imports by themselves. Use **External Roster Source** on the Teams tab to choose which modern roster feeds each 28-team slot; each source can be assigned once.
 - **Re-Draft** uses the loaded ROM's current roster pool and attributes, then stages the shuffled rosters for review.
 - Live EA detail requests require the optional development proxy and are not used on GitHub Pages.
 - Do not add or distribute copyrighted ROM files with the site.

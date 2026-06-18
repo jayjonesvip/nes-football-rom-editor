@@ -90,6 +90,7 @@ let pendingNumberEdits = new Map();
 let pendingTeamEdits = new Map();
 let pendingTeamAiEdits = new Map();
 let pendingColorEdits = new Map();
+let externalRosterSourceOverrides = new Map();
 let maddenPlayers = [];
 let draftState = null;
 let automaticDraftTimer = null;
@@ -149,6 +150,15 @@ const TECMO_TO_MADDEN_TEAMS = {
   CHI: "Chicago Bears", DET: "Detroit Lions", GB: "Green Bay Packers", MIN: "Minnesota Vikings",
   ATL: "Atlanta Falcons", RAM: "Los Angeles Rams", NO: "New Orleans Saints", SF: "San Francisco 49ers", TB: "Tampa Bay Buccaneers",
 };
+
+const EXTERNAL_ROSTER_SOURCES = [
+  "Arizona Cardinals", "Atlanta Falcons", "Baltimore Ravens", "Buffalo Bills", "Carolina Panthers", "Chicago Bears",
+  "Cincinnati Bengals", "Cleveland Browns", "Dallas Cowboys", "Denver Broncos", "Detroit Lions", "Green Bay Packers",
+  "Houston Texans", "Indianapolis Colts", "Jacksonville Jaguars", "Kansas City Chiefs", "Las Vegas Raiders",
+  "Los Angeles Chargers", "Los Angeles Rams", "Miami Dolphins", "Minnesota Vikings", "New England Patriots",
+  "New Orleans Saints", "New York Giants", "New York Jets", "Philadelphia Eagles", "Pittsburgh Steelers",
+  "San Francisco 49ers", "Seattle Seahawks", "Tampa Bay Buccaneers", "Tennessee Titans", "Washington Commanders",
+];
 
 const MODERN_TEAM_IDENTITIES = [
   ["BUF.", "BUFFALO", "BILLS"],
@@ -470,6 +480,7 @@ function setLoadedRom(bytes, name) {
   pendingTeamEdits = new Map();
   pendingTeamAiEdits = new Map();
   pendingColorEdits = new Map();
+  externalRosterSourceOverrides = new Map();
   els.changelogOutput.value = "";
   els.rosterProgress.hidden = true;
   els.rosterProgress.value = 0;
@@ -889,6 +900,32 @@ function teamIdentity(teamIndex) {
   };
 }
 
+function defaultExternalRosterSource(teamIndex) {
+  const tecmoTeam = TSB_TEAM_NAMES_28[teamIndex] || playerTable?.teams?.[teamIndex]?.name;
+  return TECMO_TO_MADDEN_TEAMS[tecmoTeam] || tecmoTeam || "";
+}
+
+function externalRosterSource(teamIndex) {
+  return externalRosterSourceOverrides.get(teamIndex) || defaultExternalRosterSource(teamIndex);
+}
+
+function externalRosterSourceOptions(teamIndex) {
+  const current = externalRosterSource(teamIndex);
+  const usedByOtherTeams = new Set();
+  const teamCount = teamStringTable?.teamCount || playerTable?.teams?.length || 0;
+  for (let index = 0; index < teamCount; index += 1) {
+    if (index !== teamIndex) usedByOtherTeams.add(externalRosterSource(index));
+  }
+  return EXTERNAL_ROSTER_SOURCES.filter((source) => source === current || !usedByOtherTeams.has(source));
+}
+
+function stageExternalRosterSource(teamIndex, source) {
+  const next = String(source || "");
+  if (!externalRosterSourceOptions(teamIndex).includes(next)) return;
+  if (next === defaultExternalRosterSource(teamIndex)) externalRosterSourceOverrides.delete(teamIndex);
+  else externalRosterSourceOverrides.set(teamIndex, next);
+}
+
 function cleanTeamText(value, maxLength = 18) {
   return String(value)
     .toUpperCase()
@@ -1159,6 +1196,8 @@ function renderTeams() {
 
   const teamIndex = Number(els.identityTeamSelect.value || 0);
   const identity = teamIdentity(teamIndex);
+  const selectedRosterSource = externalRosterSource(teamIndex);
+  const rosterSourceOptions = externalRosterSourceOptions(teamIndex);
   const used = buildTeamStringTableImage(false).dataEnd - teamStringTable.dataStart;
   const capacity = teamStringTable.limit - teamStringTable.dataStart;
   els.teamIdentityHeading.textContent = `${identity.city} ${identity.nickname}`;
@@ -1177,6 +1216,15 @@ function renderTeams() {
       <label for="team-nickname">Nickname</label>
       <input id="team-nickname" data-team-string-index="${teamIndex + 64}" maxlength="18" value="${escapeHtml(identity.nickname)}">
     </div>
+    <div class="team-field">
+      <label for="external-roster-source">External Roster Source</label>
+      <select id="external-roster-source" data-external-roster-source>
+        ${rosterSourceOptions.map((source) => `
+          <option value="${escapeHtml(source)}"${source === selectedRosterSource ? " selected" : ""}>${escapeHtml(source)}</option>
+        `).join("")}
+      </select>
+      <p class="team-source-note">Team text does not change imports. This source is used by Update Rosters and can only be assigned to one Tecmo slot at a time.</p>
+    </div>
   `;
   renderTeamAi(teamIndex);
   renderTeamDiff();
@@ -1185,7 +1233,10 @@ function renderTeams() {
 
 function renderTeamDiff() {
   const aiSets = teamAiSetDiffs();
-  if ((!teamStringTable || !pendingTeamEdits.size) && !aiSets.length) {
+  const sourceOverrides = Array.from(externalRosterSourceOverrides.entries())
+    .filter(([teamIndex, source]) => source !== defaultExternalRosterSource(teamIndex))
+    .sort(([a], [b]) => a - b);
+  if ((!teamStringTable || !pendingTeamEdits.size) && !aiSets.length && !sourceOverrides.length) {
     els.teamNameDiff.textContent = "Edit a team or sync modern team names to preview changes.";
     enableControls(Boolean(rom));
     return;
@@ -1221,8 +1272,27 @@ function renderTeamDiff() {
       ${renderSetDiff(aiSets)}
     `
     : "";
+  const sourceRows = sourceOverrides.map(([teamIndex, source]) => {
+    const identity = teamIdentity(teamIndex);
+    const before = defaultExternalRosterSource(teamIndex);
+    return `
+      <div class="diff-block">
+        <div class="diff-offset">Team ${teamIndex + 1}: ${escapeHtml(identity.city)} ${escapeHtml(identity.nickname)}</div>
+        <div class="diff-line"><span class="diff-mark minus">-</span><span class="byte-old">${escapeHtml(before)}</span></div>
+        <div class="diff-line"><span class="diff-mark plus">+</span><span class="byte-new">${escapeHtml(source)}</span></div>
+      </div>
+    `;
+  }).join("");
+  const sourceSummary = sourceOverrides.length
+    ? `
+      <h3>${sourceOverrides.length} roster source override${sourceOverrides.length === 1 ? "" : "s"}</h3>
+      <p>Roster sources are editor-only import choices. They are not written into the ROM; Update Rosters uses them when staging player changes.</p>
+      <div class="team-text-diff">${sourceRows}</div>
+    `
+    : "";
   els.teamNameDiff.innerHTML = `
     ${textSummary}
+    ${sourceSummary}
     ${aiSummary}
   `;
   enableControls(Boolean(rom));
@@ -2249,9 +2319,10 @@ function selectTecmoTeam(teamIndex) {
   renderPlayers();
 }
 
-function maddenPlayersForTecmoTeam(teamName) {
-  const preferred = TECMO_TO_MADDEN_TEAMS[teamName];
-  const aliases = [preferred, ...(MADDEN_TEAM_ALIASES[teamName] || [])]
+function maddenPlayersForTecmoTeam(teamName, teamIndex) {
+  const source = Number.isInteger(teamIndex) ? externalRosterSource(teamIndex) : TECMO_TO_MADDEN_TEAMS[teamName];
+  const isDefaultSource = source === TECMO_TO_MADDEN_TEAMS[teamName];
+  const aliases = [source, ...(isDefaultSource ? MADDEN_TEAM_ALIASES[teamName] || [] : [])]
     .filter(Boolean)
     .map((value) => String(value).toLowerCase());
   return maddenPlayers.filter((player) => aliases.includes(String(player.team).toLowerCase()));
@@ -2418,9 +2489,9 @@ async function applyMaddenToAllTeams() {
   const allAssignments = [];
   const missing = [];
   playerTable.teams.forEach((team) => {
-    const players = maddenPlayersForTecmoTeam(team.name).slice().sort((a, b) => (b.ovr || 0) - (a.ovr || 0));
+    const players = maddenPlayersForTecmoTeam(team.name, team.index).slice().sort((a, b) => (b.ovr || 0) - (a.ovr || 0));
     if (!players.length) {
-      missing.push(team.name);
+      missing.push(externalRosterSource(team.index) || team.name);
       return;
     }
     allAssignments.push(...buildMaddenAssignments(team, players).map((assignment) => ({ ...assignment, tecmoTeam: team.name })));
@@ -3255,7 +3326,15 @@ els.teamIdentityEditor.addEventListener("input", (event) => {
   if (preview) preview.innerHTML = `${escapeHtml(identity.city)} ${escapeHtml(identity.nickname)} <span class="muted">(${escapeHtml(identity.abbreviation)})</span>`;
   renderTeamDiff();
 });
-els.teamIdentityEditor.addEventListener("change", () => {
+els.teamIdentityEditor.addEventListener("change", (event) => {
+  const teamIndex = Number(els.identityTeamSelect.value || 0);
+  const rosterSource = event.target.closest("[data-external-roster-source]");
+  if (rosterSource) {
+    stageExternalRosterSource(teamIndex, rosterSource.value);
+    renderTeams();
+    return;
+  }
+
   fillIdentityTeamSelect();
   renderTeams();
 });
