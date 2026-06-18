@@ -1061,14 +1061,20 @@ function renderTeamAi(teamIndex) {
 }
 
 function fillTeamSelect() {
+  const previous = els.teamSelect.value;
   els.teamSelect.innerHTML = "";
   if (!playerTable) return;
   playerTable.teams.forEach((team) => {
     const option = document.createElement("option");
     option.value = String(team.index);
-    option.textContent = `${team.name} (${team.slots})`;
+    option.textContent = teamStringTable?.teamCount > team.index
+      ? `${teamIdentity(team.index).city} ${teamIdentity(team.index).nickname}`
+      : team.name;
     els.teamSelect.append(option);
   });
+  if (previous && Array.from(els.teamSelect.options).some((option) => option.value === previous)) {
+    els.teamSelect.value = previous;
+  }
 }
 
 function fillIdentityTeamSelect() {
@@ -1238,7 +1244,7 @@ function renderTeamDiff() {
     .filter(([teamIndex, source]) => source !== defaultExternalRosterSource(teamIndex))
     .sort(([a], [b]) => a - b);
   if ((!teamStringTable || !pendingTeamEdits.size) && !aiSets.length && !sourceOverrides.length) {
-    els.teamNameDiff.textContent = "Edit a team or sync modern team names to preview changes.";
+    els.teamNameDiff.textContent = "Edit a team or use current team names to preview changes.";
     enableControls(Boolean(rom));
     return;
   }
@@ -1347,6 +1353,7 @@ function applyTeamStringEdits() {
   dirty = true;
   updateDirty();
   teamStringTable = detectTeamStringTable();
+  fillTeamSelect();
   fillIdentityTeamSelect();
   renderTeams();
   return changed;
@@ -1369,9 +1376,10 @@ function stageModernTeamNames() {
       else pendingTeamEdits.set(stringIndex, value);
     });
   });
+  fillTeamSelect();
   fillIdentityTeamSelect();
   renderTeams();
-  els.teamIdentityStatus.textContent = "Modern names staged for all 28 teams. Review the changes, then apply them.";
+  els.teamIdentityStatus.textContent = "Current team names staged for all 28 teams. Review the changes, then apply them.";
 }
 
 function playerSlotOffset(slotIndex) {
@@ -3325,6 +3333,7 @@ els.teamIdentityEditor.addEventListener("input", (event) => {
   els.teamIdentityHeading.textContent = `${identity.city} ${identity.nickname}`;
   const preview = els.teamIdentityEditor.querySelector(".team-name-preview");
   if (preview) preview.innerHTML = `${escapeHtml(identity.city)} ${escapeHtml(identity.nickname)} <span class="muted">(${escapeHtml(identity.abbreviation)})</span>`;
+  fillTeamSelect();
   renderTeamDiff();
 });
 els.teamIdentityEditor.addEventListener("change", (event) => {
@@ -3370,9 +3379,9 @@ els.teamAiEditor.addEventListener("change", (event) => {
     renderTeams();
   }
 });
-els.updateTeamNames.addEventListener("click", () => withWork("Syncing Modern Team Names", "Staging modern team identities...", async () => {
+els.updateTeamNames.addEventListener("click", () => withWork("Using Current Team Names", "Staging current team identities...", async () => {
   stageModernTeamNames();
-  updateWork("Modern team identities staged.", 28, 28);
+  updateWork("Current team identities staged.", 28, 28);
 }, 28));
 els.applyTeamChanges.addEventListener("click", () => withWork("Applying Team Changes", "Writing team edits...", async () => {
   try {
