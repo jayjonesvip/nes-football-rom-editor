@@ -481,6 +481,213 @@ input[type="range"] {
   font: 12px/1.4 Consolas, "Courier New", monospace;
 }
 
+.draft-dashboard {
+  display: grid;
+  grid-template-columns: minmax(460px, 1.3fr) minmax(260px, .7fr);
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.draft-panel {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px;
+  background: var(--dark);
+}
+
+.draft-panel h3 {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.draft-panel-board,
+.draft-panel-wide {
+  grid-row: span 2;
+}
+
+.draft-board,
+.draft-history,
+.draft-team-rosters {
+  max-height: 420px;
+  overflow: auto;
+}
+
+.draft-board.empty,
+.draft-history.empty,
+.draft-team-rosters.empty,
+.draft-needs.empty {
+  min-height: 80px;
+  display: grid;
+  align-items: center;
+  color: var(--muted);
+}
+
+.draft-board table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.draft-board th,
+.draft-board td {
+  border-bottom: 1px solid var(--line);
+  padding: 6px 8px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.draft-board th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--panel);
+  color: var(--muted);
+  text-transform: uppercase;
+  font-size: 11px;
+}
+
+.draft-board td strong,
+.draft-board td small {
+  display: block;
+}
+
+.draft-board td small {
+  color: var(--muted);
+}
+
+.draft-board tr.drafted {
+  opacity: .58;
+}
+
+.draft-history-row {
+  display: grid;
+  grid-template-columns: 58px minmax(70px, .7fr) minmax(120px, 1fr);
+  gap: 8px;
+  border-bottom: 1px solid var(--line);
+  padding: 6px 0;
+  font-size: 12px;
+}
+
+.draft-history-row span {
+  color: #9de1d6;
+  font-family: Consolas, "Courier New", monospace;
+}
+
+.draft-history-row em {
+  color: var(--muted);
+  font-style: normal;
+}
+
+.draft-team-rosters {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 8px;
+}
+
+.draft-team-rosters article {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px;
+  background: var(--panel-raised);
+}
+
+.draft-team-rosters h4 {
+  margin: 0 0 6px;
+  color: #9de1d6;
+}
+
+.draft-team-rosters article div {
+  display: grid;
+  gap: 3px;
+  color: var(--muted);
+  font: 11px/1.25 Consolas, "Courier New", monospace;
+}
+
+.draft-results {
+  margin-top: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.draft-results.empty {
+  min-height: 86px;
+  align-content: center;
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  padding: 16px;
+  color: var(--muted);
+  background: var(--dark);
+}
+
+.draft-result-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.draft-result-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 8px;
+  max-height: 560px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.draft-result-card {
+  display: grid;
+  grid-template-columns: 44px 78px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px;
+  background: var(--panel-raised);
+}
+
+.draft-result-pick {
+  display: grid;
+  place-items: center;
+  min-height: 34px;
+  border-radius: 4px;
+  background: #21312f;
+  color: #9de1d6;
+  font: 12px/1 Consolas, "Courier New", monospace;
+}
+
+.draft-result-main {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.draft-result-main strong,
+.draft-result-main span,
+.draft-result-main small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.draft-result-main strong {
+  color: var(--ink);
+}
+
+.draft-result-main span {
+  font: 12px/1.25 Consolas, "Courier New", monospace;
+}
+
+.draft-result-main small {
+  color: var(--muted);
+}
+
 .draft-modal-card {
   width: min(720px, calc(100vw - 32px));
 }
@@ -752,6 +959,15 @@ input[type="range"] {
 .face-preview.large img {
   width: 64px;
   height: 64px;
+}
+
+.face-preview.draft-face {
+  min-width: 70px;
+}
+
+.face-preview.draft-face img {
+  width: 38px;
+  height: 38px;
 }
 
 .face-editor {
@@ -1117,7 +1333,13 @@ tr:last-child td {
 
   .human-grid,
   .draft-room,
+  .draft-dashboard,
   .hack-card {
     grid-template-columns: 1fr;
+  }
+
+  .draft-panel-board,
+  .draft-panel-wide {
+    grid-row: auto;
   }
 }

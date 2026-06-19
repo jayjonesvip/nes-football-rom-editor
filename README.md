@@ -34,14 +34,14 @@ Then open `http://localhost:8080/`.
 
 1. Open a legally obtained supported 28-team NES football `.nes` ROM.
 2. Use **Teams** to review team names, CPU run/pass preference, simulation strength, and playbooks.
-3. Use **Draft Room** to run an automatic re-draft from the loaded ROM's current roster pool.
+3. Use **Draft Room > Run Draft** or **Step Draft** to draft from the loaded ROM's current roster pool and review the pick results.
 4. Review the staged roster changes in **Players** using the player table and red/green diff.
 5. Click **Finalize Draft** in Draft Room, or **Apply Changes** in Players, to rebuild the compact roster records.
 6. Export the edited ROM.
 
 Roster management actions intentionally stage changes first. This makes the dirty byte preview visible before the roster block is rebuilt.
 
-The ROM remains a 28-team game. Team AI settings influence re-draft behavior: rushing teams prioritize running backs and offensive linemen, passing teams prioritize quarterbacks and receivers, and the "little more" settings stay more balanced.
+The ROM remains a 28-team game. Team AI settings influence draft behavior: rushing teams prioritize running backs and offensive linemen, passing teams prioritize quarterbacks and receivers, and the "little more" settings stay more balanced.
 
 ## Published Structure
 
@@ -63,8 +63,11 @@ reference/
 - Visitors must open their own legally obtained ROM file.
 - ROM files are processed locally in the browser and are not uploaded.
 - The application edits an in-memory copy and exports a new timestamped `.nes` file.
-- **Re-Draft** uses the loaded ROM's current roster pool and attributes, then stages the shuffled rosters for review.
-- Re-draft behavior uses the Teams tab's CPU run/pass preference as a drafting personality.
+- **Run Draft** uses the loaded ROM's current roster pool and attributes, then stages the drafted rosters for review.
+- **Step Draft** advances one pick at a time for inspecting the board, team needs, and round-by-round history.
+- Draft behavior uses Tecmo-style value: speed, ball control, QB accuracy, pass control, defensive speed, and position scarcity matter more than real NFL roster theory.
+- Need-Based Drafting fills starter needs before depth; Best Available still respects valid roster slots but leans harder into raw Tecmo draft score.
+- Blank draft seeds are randomized automatically; typed seeds can be reused for reproducible draft results.
 - Do not add or distribute copyrighted ROM files with the site.
 
 ## References
