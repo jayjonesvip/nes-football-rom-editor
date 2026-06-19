@@ -98,7 +98,7 @@
         <section class="draft-room">
           <div>
             <h2>Draft Room</h2>
-            <div id="roster-status" class="muted">Load a supported 28-team NES football ROM to run an automatic re-draft from the loaded roster.</div>
+            <div id="roster-status" class="muted">Load a supported 28-team NES football ROM to start an automatic draft from the loaded roster.</div>
             <progress id="roster-progress" value="0" max="100" hidden></progress>
           </div>
           <div class="player-actions">
@@ -106,7 +106,7 @@
               <input id="draft-seed" type="text" placeholder="optional">
             </label>
             <button id="random-draft-seed" type="button" disabled>Random Seed</button>
-            <button id="redraft-rosters" type="button" disabled>Re-Draft</button>
+            <button id="redraft-rosters" type="button" disabled>Start Draft</button>
             <button id="revert-draft" type="button" disabled>Undo Draft</button>
             <button id="finalize-draft" type="button" disabled>Finalize Draft</button>
           </div>
@@ -115,8 +115,9 @@
         <section class="human-section">
           <h2>Draft Notes</h2>
           <div class="hack-detail">
-            Re-draft uses the current loaded roster as the player pool. Team AI run/pass preferences influence draft priorities before backup slots are filled.
+            Draft uses the current loaded roster as the player pool. Team AI run/pass preferences influence draft priorities before backup slots are filled.
           </div>
+          <div id="draft-results" class="draft-results empty">Start a draft to see each team's picks by round.</div>
         </section>
       </section>
 
